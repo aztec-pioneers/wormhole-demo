@@ -1,0 +1,10 @@
+[submodule "deps/wormhole"]
+	path = deps/wormhole
+	url = https://github.com/NethermindEth/wormhole
+	branch = aztec
+[submodule "deps/wormhole-evm"]
+	path = deps/wormhole-evm
+	url = https://github.com/NethermindEth/wormhole
+[submodule "deps/openzeppelin-contracts"]
+	path = deps/openzeppelin-contracts
+	url = https://github.com/openzeppelin/openzeppelin-contracts

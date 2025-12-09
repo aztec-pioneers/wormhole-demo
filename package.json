@@ -1,0 +1,34 @@
+{
+  "name": "wormhole-demo",
+  "version": "1.0.0",
+  "description": "Simplified cross-chain messaging demo between Aztec and EVM using Wormhole",
+  "private": true,
+  "scripts": {
+    "build": "npm run build:aztec && npm run build:evm",
+    "build:aztec": "cd packages/aztec && bun run build",
+    "build:evm": "cd packages/evm && bun run build",
+    "build:relayer": "cd packages/relayer && go build -o bin/wormhole-relayer .",
+    "deploy:local": "npm run deploy:local:aztec && npm run deploy:local:evm",
+    "deploy:local:aztec": "cd packages/aztec && bun run setup:deploy",
+    "deploy:local:evm": "cd packages/evm && forge script script/DeployMessageBridge.s.sol --rpc-url localhost:8545 --broadcast",
+    "sandbox": "docker compose up"
+  },
+  "workspaces": [
+    "packages/aztec",
+    "packages/evm"
+  ],
+  "packageManager": "bun@1.3.1",
+  "keywords": [
+    "aztec",
+    "wormhole",
+    "cross-chain",
+    "bridge",
+    "evm",
+    "arbitrum"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/wormhole-demo.git"
+  }
+}
