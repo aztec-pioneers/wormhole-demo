@@ -11,6 +11,8 @@
     "deploy:evm": "pnpm --filter @wormhole-demo/aztec deploy:evm",
     "deploy:aztec": "pnpm --filter @wormhole-demo/aztec setup:deploy",
     "configure": "pnpm --filter @wormhole-demo/aztec setup:configure",
+    "send": "pnpm --filter @wormhole-demo/aztec send",
+    "send:evm": "pnpm --filter @wormhole-demo/aztec send:evm",
     "sandbox": "docker compose up"
   },
   "packageManager": "pnpm@9.15.4",

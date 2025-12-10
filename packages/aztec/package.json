@@ -29,7 +29,8 @@
     "setup:deploy": "tsx ./scripts/deploy.ts",
     "setup:configure": "tsx ./scripts/configure.ts",
     "deploy:evm": "tsx ./scripts/deployEvm.ts",
-    "send": "tsx ./scripts/sendValue.ts"
+    "send": "tsx ./scripts/sendValue.ts",
+    "send:evm": "tsx ./scripts/sendValueEvm.ts"
   },
   "devDependencies": {
     "tsup": "^8.3.5",

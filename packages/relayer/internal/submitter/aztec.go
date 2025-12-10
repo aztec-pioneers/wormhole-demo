@@ -51,5 +51,14 @@ func (s *AztecSubmitter) SubmitVAA(ctx context.Context, vaaBytes []byte) (string
 		s.logger.Debug("Used verification service successfully")
 	}
 
-	return txHash, err
+	if err != nil {
+		s.logger.Error("Failed to submit VAA to Aztec", zap.Error(err))
+		return "", err
+	}
+
+	s.logger.Info("VAA successfully submitted to Aztec",
+		zap.String("txHash", txHash),
+		zap.String("targetContract", s.targetContract))
+
+	return txHash, nil
 }
