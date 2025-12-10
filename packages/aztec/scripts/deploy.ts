@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import "dotenv/config";
+import { loadRootEnv } from "./utils/env";
+loadRootEnv();
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { writeFileSync } from "fs";
@@ -14,9 +15,9 @@ import { updateRootEnv } from "./utils/env";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const { AZTEC_NODE_URL, WORMHOLE_ADDRESS } = process.env;
+const { AZTEC_NODE_URL, AZTEC_WORMHOLE_ADDRESS } = process.env;
 if (!AZTEC_NODE_URL) throw new Error("AZTEC_NODE_URL not set in .env");
-if (!WORMHOLE_ADDRESS) throw new Error("WORMHOLE_ADDRESS not set in .env");
+if (!AZTEC_WORMHOLE_ADDRESS) throw new Error("AZTEC_WORMHOLE_ADDRESS not set in .env");
 
 const main = async () => {
     console.log(`Connecting to Aztec Node at ${AZTEC_NODE_URL}...`);
@@ -32,7 +33,7 @@ const main = async () => {
     const opts = await testnetSendWaitOpts(node, wallet, adminAddress);
     const messageBridge = await MessageBridgeContract.deploy(
         wallet,
-        AztecAddress.fromString(WORMHOLE_ADDRESS),
+        AztecAddress.fromString(AZTEC_WORMHOLE_ADDRESS),
         AZTEC_TEST_CHAIN_ID,
         adminAddress,
         MESSAGE_FEE
@@ -44,7 +45,7 @@ const main = async () => {
     // Save deployment addresses
     const addressesFilePath = join(__dirname, "data/addresses.json");
     const addresses = {
-        wormhole: WORMHOLE_ADDRESS,
+        wormhole: AZTEC_WORMHOLE_ADDRESS,
         messageBridge: bridgeAddress,
     };
 
@@ -55,7 +56,6 @@ const main = async () => {
     updateRootEnv({
         AZTEC_BRIDGE_ADDRESS: bridgeAddress,
         AZTEC_EMITTER_ADDRESS: bridgeAddress,
-        WORMHOLE_ADDRESS: WORMHOLE_ADDRESS,
     });
     console.log("Auto-updated root .env file with deployment addresses for docker");
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import "dotenv/config";
+import { loadRootEnv } from "./utils/env";
+loadRootEnv();
 import { fileURLToPath } from "url";
 import { join } from "path";
 import { existsSync, readFileSync } from "fs";

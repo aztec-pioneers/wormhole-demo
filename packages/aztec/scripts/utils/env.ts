@@ -1,5 +1,12 @@
+import { config } from "dotenv";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
+
+const ROOT_ENV_PATH = join(__dirname, "../../../../.env");
+
+export function loadRootEnv() {
+    config({ path: ROOT_ENV_PATH });
+}
 
 export function updateRootEnv(updates: Record<string, string>) {
     const rootEnvPath = join(__dirname, "../../../../.env");

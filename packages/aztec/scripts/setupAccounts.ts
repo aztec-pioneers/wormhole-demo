@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import "dotenv/config";
+import { loadRootEnv } from "./utils/env";
+loadRootEnv();
 import { writeFileSync } from "fs";
 import { AccountData, TESTNET_PXE_CONFIG, testnetSendWaitOpts } from "./utils/aztec";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";

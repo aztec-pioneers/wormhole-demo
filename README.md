@@ -15,7 +15,16 @@
 pnpm install
 
 # Install Foundry dependencies
-cd packages/evm && forge install
+cd packages/evm && forge install && cd ../..
+```
+
+## Configure
+
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit .env with your values (PRIVATE_KEY is required)
 ```
 
 ## Build
@@ -30,28 +39,19 @@ pnpm build:evm
 pnpm build:relayer
 ```
 
-## Configure
-
-```bash
-# Copy environment templates
-cp .env.example .env
-cp packages/evm/.env.example packages/evm/.env
-
-# Edit .env files with your values
-```
-
 ## Deploy
 
 ### Deploy EVM Contracts
 
 ```bash
-cd packages/evm
-forge script script/DeployMessageBridge.s.sol --rpc-url arbitrum_sepolia --broadcast --verify
+# Deploy and auto-update .env with EVM_BRIDGE_ADDRESS
+pnpm deploy:evm:testnet
 ```
 
 ### Deploy Aztec Contracts
 
 ```bash
+# Deploy and auto-update .env with AZTEC_BRIDGE_ADDRESS
 pnpm --filter @wormhole-demo/aztec setup:deploy
 ```
 
