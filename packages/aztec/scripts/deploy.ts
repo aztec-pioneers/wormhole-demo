@@ -45,8 +45,10 @@ const main = async () => {
     // Save deployment addresses
     const addressesFilePath = join(__dirname, "data/addresses.json");
     const addresses = {
-        wormhole: AZTEC_WORMHOLE_ADDRESS,
-        messageBridge: bridgeAddress,
+        messageBridge: {
+            address: bridgeAddress,
+            instance: JSON.stringify(messageBridge.instance)
+        }
     };
 
     writeFileSync(addressesFilePath, JSON.stringify(addresses, null, 2));

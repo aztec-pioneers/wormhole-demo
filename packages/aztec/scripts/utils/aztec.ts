@@ -13,22 +13,29 @@ import { Fr } from "@aztec/aztec.js/fields";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const accountsFilePath = join(__dirname, "../data/accounts.json");
 
-
-const { ROLLUP_VERSION } = process.env;
-if (!ROLLUP_VERSION) {
-    throw new Error("ROLLUP_VERSION not set in .env");
-}
-
 export type AccountData = {
     secretKey: string;
     salt: string;
     address: string;
 }
 
-export const TESTNET_PXE_CONFIG: Partial<PXEConfig> = {
-    rollupVersion: Number(ROLLUP_VERSION),
-    proverEnabled: false
+export function getTestnetPxeConfig(): Partial<PXEConfig> {
+    const { ROLLUP_VERSION } = process.env;
+    if (!ROLLUP_VERSION) {
+        throw new Error("ROLLUP_VERSION not set in .env");
+    }
+    return {
+        rollupVersion: Number(ROLLUP_VERSION),
+        proverEnabled: false
+    };
 }
+
+// For backwards compatibility - lazy getter
+export const TESTNET_PXE_CONFIG: Partial<PXEConfig> = new Proxy({} as Partial<PXEConfig>, {
+    get(_, prop) {
+        return getTestnetPxeConfig()[prop as keyof Partial<PXEConfig>];
+    }
+});
 
 export const TESTNET_TIMEOUT = 3600; // seconds until timeout waiting for send
 export const TESTNET_INTERNAL = 3; // seconds between polling for tx

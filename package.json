@@ -8,10 +8,9 @@
     "build:aztec": "pnpm --filter @wormhole-demo/aztec build",
     "build:evm": "pnpm --filter @wormhole-demo/evm build",
     "build:relayer": "cd packages/relayer && go build -o bin/wormhole-relayer .",
-    "deploy:local": "pnpm run deploy:local:aztec && pnpm run deploy:local:evm",
-    "deploy:local:aztec": "pnpm --filter @wormhole-demo/aztec setup:deploy",
-    "deploy:local:evm": "pnpm --filter @wormhole-demo/evm deploy:local",
-    "deploy:evm:testnet": "pnpm --filter @wormhole-demo/aztec deploy:evm",
+    "deploy:evm": "pnpm --filter @wormhole-demo/aztec deploy:evm",
+    "deploy:aztec": "pnpm --filter @wormhole-demo/aztec setup:deploy",
+    "configure": "pnpm --filter @wormhole-demo/aztec setup:configure",
     "sandbox": "docker compose up"
   },
   "packageManager": "pnpm@9.15.4",

@@ -45,15 +45,28 @@ pnpm build:relayer
 
 ```bash
 # Deploy and auto-update .env with EVM_BRIDGE_ADDRESS
-pnpm deploy:evm:testnet
+pnpm deploy:evm
 ```
 
 ### Deploy Aztec Contracts
 
 ```bash
 # Deploy and auto-update .env with AZTEC_BRIDGE_ADDRESS
-pnpm --filter @wormhole-demo/aztec setup:deploy
+pnpm deploy:aztec
 ```
+
+### Configure Bridges
+
+After both contracts are deployed, configure them to trust each other:
+
+```bash
+# Register emitters on both EVM and Aztec bridges
+pnpm configure
+```
+
+This will:
+- Register the Aztec bridge as a trusted emitter on the EVM bridge
+- Register the EVM bridge as a trusted emitter on the Aztec bridge
 
 ## Run Relayer
 
