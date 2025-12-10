@@ -1,0 +1,99 @@
+services:
+  # PXE - Aztec PXE connected to devnet
+  pxe:
+    image: aztecprotocol/aztec:latest
+    ports:
+      - "8080:8080"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        node --no-warnings /usr/src/yarn-project/aztec/dest/bin/index.js start --pxe
+    environment:
+      - AZTEC_PORT=8080
+      - LOG_LEVEL=info
+      - AZTEC_NODE_URL=https://aztec-alpha-testnet-fullnode.zkv.xyz
+      - ETHEREUM_HOSTS=https://eth-sepolia.public.blastapi.io
+      - L1_CHAIN_ID=11155111
+      - ROLLUP_VERSION=845231713
+      - PXE_PROVER_ENABLED=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - relayer-network
+    
+  # Wormhole Spy - monitors guardian network for VAAs
+  wormhole-spy:
+    image: ghcr.io/wormhole-foundation/guardiand:latest
+    platform: linux/amd64
+    entrypoint: /guardiand
+    command:
+      - spy
+      - --nodeKey
+      - /node.key
+      - --spyRPC
+      - "[::]:7073"
+      - --env
+      - testnet
+      - --logLevel
+      - error
+    ports:
+      - "7073:7073"
+    networks:
+      - relayer-network
+    restart: unless-stopped
+    
+
+  # Relayer for Aztec -> EVM (listens for Aztec VAAs, submits to EVM)
+  relayer-to-evm:
+    build:
+      context: ./packages/relayer
+      dockerfile: Dockerfile
+    command:
+      - evm
+      - --private-key=${PRIVATE_KEY}
+      - --evm-target-contract=${EVM_BRIDGE_ADDRESS}
+    environment:
+      # Wormhole Spy
+      - SPY_RPC_HOST=wormhole-spy:7073
+    depends_on:
+      - wormhole-spy
+    networks:
+      - relayer-network
+    restart: unless-stopped
+
+
+  # Relayer for EVM -> Aztec (listens for EVM VAAs, submits to Aztec)
+  # Note: Requires external PXE to be running
+  relayer-to-aztec:
+    build:
+      context: ./packages/relayer
+      dockerfile: Dockerfile
+    command: ["aztec"]
+    environment:
+      # Wormhole Spy
+      - SPY_RPC_HOST=wormhole-spy:7073
+      # Source chain (EVM - Arbitrum Sepolia)
+      - EVM_CHAIN_ID=10003
+      # Aztec target (connect to external PXE)
+      - AZTEC_PXE_URL=${AZTEC_PXE_URL:-http://host.docker.internal:8080}
+      - AZTEC_CONTRACT_ADDRESS=${AZTEC_BRIDGE_ADDRESS}
+      - AZTEC_WALLET_ADDRESS=${AZTEC_WALLET_ADDRESS}
+    depends_on:
+      wormhole-spy:
+        condition: service_started
+      pxe:
+        condition: service_healthy
+    networks:
+      - relayer-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+networks:
+  relayer-network:
+    driver: bridge

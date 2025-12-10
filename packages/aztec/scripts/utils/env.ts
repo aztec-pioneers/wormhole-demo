@@ -1,0 +1,23 @@
+import { existsSync, readFileSync, writeFileSync } from "fs";
+import { join } from "path";
+
+export function updateRootEnv(updates: Record<string, string>) {
+    const rootEnvPath = join(__dirname, "../../../../.env");
+    let envContent = "";
+
+    if (existsSync(rootEnvPath)) {
+        envContent = readFileSync(rootEnvPath, "utf-8");
+    }
+
+    for (const [key, value] of Object.entries(updates)) {
+        const regex = new RegExp(`^${key}=.*$`, "m");
+        if (regex.test(envContent)) {
+            envContent = envContent.replace(regex, `${key}=${value}`);
+        } else {
+            envContent += `\n${key}=${value}`;
+        }
+    }
+
+    writeFileSync(rootEnvPath, envContent.trim() + "\n");
+    console.log("Updated root .env");
+}
