@@ -58,8 +58,8 @@ services:
       - --private-key=${PRIVATE_KEY}
       - --evm-target-contract=${EVM_BRIDGE_ADDRESS}
     environment:
-      # Wormhole Spy
-      - SPY_RPC_HOST=wormhole-spy:7073
+      # Wormhole Spy (prefixed for viper)
+      - WORMHOLE_RELAYER_SPY_RPC_HOST=wormhole-spy:7073
     depends_on:
       - wormhole-spy
     networks:
@@ -75,14 +75,14 @@ services:
       dockerfile: Dockerfile
     command: ["aztec"]
     environment:
-      # Wormhole Spy
-      - SPY_RPC_HOST=wormhole-spy:7073
+      # Wormhole Spy (prefixed for viper)
+      - WORMHOLE_RELAYER_SPY_RPC_HOST=wormhole-spy:7073
       # Source chain (EVM - Arbitrum Sepolia)
-      - EVM_CHAIN_ID=10003
-      # Aztec target (connect to external PXE)
-      - AZTEC_PXE_URL=${AZTEC_PXE_URL:-http://host.docker.internal:8080}
-      - AZTEC_CONTRACT_ADDRESS=${AZTEC_BRIDGE_ADDRESS}
-      - AZTEC_WALLET_ADDRESS=${AZTEC_WALLET_ADDRESS}
+      - WORMHOLE_RELAYER_CHAIN_ID=10003
+      # Aztec target (connect to PXE container)
+      - WORMHOLE_RELAYER_AZTEC_PXE_URL=http://pxe:8080
+      - WORMHOLE_RELAYER_AZTEC_TARGET_CONTRACT=${AZTEC_BRIDGE_ADDRESS}
+      - WORMHOLE_RELAYER_VERIFICATION_SERVICE_URL=http://pxe:8080/verify
     depends_on:
       wormhole-spy:
         condition: service_started

@@ -37,6 +37,20 @@ func (p *DefaultVAAProcessor) ProcessVAA(ctx context.Context, vaaData VAAData) (
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second) // Increased timeout for HTTP calls
 	defer cancel()
 
+	// Log VAAs from Aztec (56) or Arbitrum Sepolia (10003) at INFO level before filtering
+	if vaaData.ChainID == 56 || vaaData.ChainID == 10003 {
+		chainName := "Aztec"
+		if vaaData.ChainID == 10003 {
+			chainName = "Arbitrum Sepolia"
+		}
+		p.logger.Info("Received VAA from target chain",
+			zap.String("chain", chainName),
+			zap.Uint16("chainId", vaaData.ChainID),
+			zap.String("emitter", vaaData.EmitterHex),
+			zap.Uint64("sequence", vaaData.Sequence),
+			zap.String("sourceTxID", vaaData.TxID))
+	}
+
 	// Log essential VAA information at debug level
 	p.logger.Debug("VAA Details",
 		zap.Uint16("emitterChain", vaaData.ChainID),

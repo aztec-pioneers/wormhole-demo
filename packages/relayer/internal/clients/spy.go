@@ -32,6 +32,7 @@ func NewSpyClient(logger *zap.Logger, endpoint string) (*SpyClient, error) {
 
 	client.conn = conn
 	client.client = spyv1.NewSpyRPCServiceClient(conn)
+	client.logger.Info("Successfully connected to spy service", zap.String("endpoint", endpoint))
 	return client, nil
 }
 
@@ -73,6 +74,7 @@ func (c *SpyClient) SubscribeSignedVAA(ctx context.Context) (spyv1.SpyRPCService
 		client := spyv1.NewSpyRPCServiceClient(conn)
 		stream, err = client.SubscribeSignedVAA(ctx, &spyv1.SubscribeSignedVAARequest{})
 		if err == nil {
+			c.logger.Info("Successfully subscribed to VAA stream")
 			return stream, nil
 		}
 
