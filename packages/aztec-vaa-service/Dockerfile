@@ -14,16 +14,20 @@ WORKDIR /app
 # Copy root package files for workspace setup
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Copy the aztec package
+# Copy the aztec-contracts package (dependency)
 COPY packages/aztec/package.json packages/aztec/
+COPY packages/aztec/ts/ packages/aztec/ts/
+
+# Copy the aztec-vaa-service package
+COPY packages/aztec-vaa-service/package.json packages/aztec-vaa-service/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copy the rest of the aztec package source
-COPY packages/aztec/ packages/aztec/
+# Copy the rest of the aztec-vaa-service package source
+COPY packages/aztec-vaa-service/ packages/aztec-vaa-service/
 
-WORKDIR /app/packages/aztec
+WORKDIR /app/packages/aztec-vaa-service
 
 # Expose the API port
 EXPOSE 3000
@@ -33,4 +37,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
 # Run the VAA service
-CMD ["pnpm", "tsx", "ts/vaaService/api.ts"]
+CMD ["pnpm", "start"]

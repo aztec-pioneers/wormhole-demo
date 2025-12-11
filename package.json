@@ -1,5 +1,5 @@
 {
-  "name": "wormhole-demo",
+  "name": "aztec-wormhole-demo",
   "version": "1.0.0",
   "description": "Simplified cross-chain messaging demo between Aztec and EVM using Wormhole",
   "private": true,

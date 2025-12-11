@@ -14,7 +14,7 @@ import {
     type LogEntry,
     type OracleStats,
     type ProfileableInteraction
-} from './types';
+} from './types.js';
 
 const logger = createLogger('bench:profile_capture');
 

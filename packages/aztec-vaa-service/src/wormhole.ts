@@ -6,10 +6,10 @@ import { SponsoredFeePaymentMethod } from '@aztec/aztec.js/fee';
 import { getPXEConfig } from '@aztec/pxe/server';
 import { createStore } from "@aztec/kv-store/lmdb"
 import { TestWallet } from '@aztec/test-wallet/server';
-import ProxyLogger from './utils';
-import { getPriorityFeeOptions, getSponsoredPaymentMethod } from '../fees';
-import { WormholeContract, WormholeContractArtifact } from '../artifacts';
-import { VAAVerificationResult } from './types';
+import ProxyLogger from './utils.js';
+import { getSponsoredPaymentMethod, getPriorityFeeOptions } from '@aztec-wormhole-demo/aztec-contracts/fees';
+import { WormholeContract, WormholeContractArtifact } from '@aztec-wormhole-demo/aztec-contracts/artifacts';
+import { VAAVerificationResult } from './types.js';
 
 // DEVNET CONFIGURATION
 const AZTEC_NODE_URL = process.env.AZTEC_NODE_URL;
@@ -134,4 +134,3 @@ export default class WormholeVaaService {
         return this.relayerAddress;
     }
 }
-

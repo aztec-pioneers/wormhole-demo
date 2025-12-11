@@ -1,6 +1,6 @@
 import "dotenv/config";
 import express from 'express';
-import WormholeVaaService from './wormhole';
+import WormholeVaaService from './wormhole.js';
 
 
 const PORT = process.env.PORT || 3000;
