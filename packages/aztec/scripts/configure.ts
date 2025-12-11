@@ -35,24 +35,19 @@ async function configureEvmBridge() {
     const { account, publicClient, walletClient } = createEvmClients(ARBITRUM_RPC_URL!, EVM_PRIVATE_KEY!);
     const evmBridgeAddress = getAddress(EVM_BRIDGE_ADDRESS!);
 
-    // Check if already registered
-    const existingEmitter = await publicClient.readContract({
+    const aztecEmitterBytes32 = addressToBytes32(AZTEC_BRIDGE_ADDRESS!);
+
+    // Check if already registered (nested mapping: chainId => emitterAddress => bool)
+    const isRegistered = await publicClient.readContract({
         address: evmBridgeAddress,
         abi: MESSAGE_BRIDGE_ABI,
         functionName: "registeredEmitters",
-        args: [AZTEC_WORMHOLE_CHAIN_ID],
-    });
+        args: [AZTEC_WORMHOLE_CHAIN_ID, aztecEmitterBytes32],
+    }) as boolean;
 
-    const aztecEmitterBytes32 = addressToBytes32(AZTEC_BRIDGE_ADDRESS!);
-
-    if (existingEmitter === aztecEmitterBytes32) {
+    if (isRegistered) {
         console.log("Aztec emitter already registered on EVM bridge");
         return;
-    }
-
-    if (existingEmitter !== "0x0000000000000000000000000000000000000000000000000000000000000000") {
-        console.log(`Warning: Different emitter already registered: ${existingEmitter}`);
-        console.log(`Will update to: ${aztecEmitterBytes32}`);
     }
 
     // Check ownership

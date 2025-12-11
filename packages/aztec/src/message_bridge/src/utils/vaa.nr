@@ -36,11 +36,11 @@ pub fn decode_message_payload(vaa: [u8; VAA_MAX_LENGTH]) -> DecodedVAAPayload {
     // note: we only take first 31 bytes
     let mut sender_bytes = [0; 31];
     for i in 0..31 {
-        sender_bytes[i] = message_bytes[5 + i];
+        sender_bytes[i] = message_bytes[4 + i];
     }
     let sender = Field::from_le_bytes(sender_bytes);
     // 6. extract the value
-    let value = message_bytes[38];
+    let value = message_bytes[37];
     // 7. compute nullifier
     let mut nullifier_preimage_bytes = [0; MESSAGE_NULLIFIER_LENGTH];
     let message_packed = pack_bytes(message_bytes);

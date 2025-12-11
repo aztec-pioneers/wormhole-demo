@@ -3,7 +3,7 @@ import { loadRootEnv } from "./utils/env";
 loadRootEnv();
 
 import { createEvmClients, MESSAGE_BRIDGE_ABI } from "./utils/evm";
-import { getAddress, parseEther } from "viem";
+import { getAddress } from "viem";
 import { AZTEC_WORMHOLE_CHAIN_ID } from "../ts/constants";
 
 const { ARBITRUM_RPC_URL, EVM_PRIVATE_KEY, EVM_BRIDGE_ADDRESS } = process.env;
@@ -11,6 +11,17 @@ const { ARBITRUM_RPC_URL, EVM_PRIVATE_KEY, EVM_BRIDGE_ADDRESS } = process.env;
 if (!ARBITRUM_RPC_URL) throw new Error("ARBITRUM_RPC_URL not set in .env");
 if (!EVM_PRIVATE_KEY) throw new Error("EVM_PRIVATE_KEY not set in .env");
 if (!EVM_BRIDGE_ADDRESS) throw new Error("EVM_BRIDGE_ADDRESS not set in .env - deploy EVM bridge first");
+
+// Minimal ABI to read message fee from Wormhole contract
+const WORMHOLE_ABI = [
+    {
+        name: "messageFee",
+        type: "function",
+        stateMutability: "view",
+        inputs: [],
+        outputs: [{ type: "uint256" }],
+    },
+] as const;
 
 const main = async () => {
     const value = process.argv[2] ? parseInt(process.argv[2]) : 42;
@@ -27,11 +38,18 @@ const main = async () => {
     console.log(`Using account: ${account.address}`);
     console.log(`Bridge address: ${bridgeAddress}`);
 
-    // Get the Wormhole message fee
-    const messageFee = await publicClient.readContract({
+    // Get the Wormhole contract address from the bridge
+    const wormholeAddress = await publicClient.readContract({
         address: bridgeAddress,
         abi: MESSAGE_BRIDGE_ABI,
-        functionName: "getMessageFee",
+        functionName: "wormhole",
+    }) as `0x${string}`;
+
+    // Get the Wormhole message fee from the Wormhole contract
+    const messageFee = await publicClient.readContract({
+        address: wormholeAddress,
+        abi: WORMHOLE_ABI,
+        functionName: "messageFee",
     }) as bigint;
 
     console.log(`Wormhole message fee: ${messageFee} wei`);

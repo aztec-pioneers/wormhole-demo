@@ -8,7 +8,7 @@ import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { MessageBridgeContract, MessageBridgeContractArtifact } from "../ts/artifacts";
 import { loadAccounts, getTestnetPxeConfig } from "./utils/aztec";
-import { addressToBytes32, bytes32ArrayToHex } from "./utils/bytes";
+import { addressToBytes32, hexToBytes32Array } from "./utils/bytes";
 import { createEvmClients, MESSAGE_BRIDGE_ABI } from "./utils/evm";
 import { AZTEC_WORMHOLE_CHAIN_ID, ARBITRUM_SEPOLIA_CHAIN_ID } from "../ts/constants";
 
@@ -42,24 +42,24 @@ async function checkEvmBridge(): Promise<CheckResult> {
     const { publicClient } = createEvmClients(ARBITRUM_RPC_URL!, EVM_PRIVATE_KEY!);
     const evmBridgeAddress = getAddress(EVM_BRIDGE_ADDRESS!);
 
-    const registeredEmitter = await publicClient.readContract({
+    const expectedEmitter = addressToBytes32(AZTEC_BRIDGE_ADDRESS!);
+
+    // New: nested mapping (chainId => emitterAddress => bool)
+    const isRegistered = await publicClient.readContract({
         address: evmBridgeAddress,
         abi: MESSAGE_BRIDGE_ABI,
         functionName: "registeredEmitters",
-        args: [AZTEC_WORMHOLE_CHAIN_ID],
-    }) as `0x${string}`;
-
-    const expectedEmitter = addressToBytes32(AZTEC_BRIDGE_ADDRESS!);
-    const isRegistered = registeredEmitter.toLowerCase() === expectedEmitter.toLowerCase();
+        args: [AZTEC_WORMHOLE_CHAIN_ID, expectedEmitter],
+    }) as boolean;
 
     console.log(`  Expected: ${expectedEmitter}`);
-    console.log(`  Registered: ${registeredEmitter}`);
-    console.log(`  Status: ${isRegistered ? "✅ MATCH" : "❌ MISMATCH"}`);
+    console.log(`  Registered: ${isRegistered}`);
+    console.log(`  Status: ${isRegistered ? "✅ REGISTERED" : "❌ NOT REGISTERED"}`);
 
     return {
         side: "EVM",
         expectedEmitter,
-        registeredEmitter,
+        registeredEmitter: isRegistered ? expectedEmitter : "0x0000000000000000000000000000000000000000000000000000000000000000",
         isRegistered,
     };
 }
@@ -81,29 +81,23 @@ async function checkAztecBridge(): Promise<CheckResult> {
 
     const bridge = await MessageBridgeContract.at(bridgeAddress, wallet);
 
-    const registeredEmitter = await bridge.methods
-        .get_registered_emitter(ARBITRUM_SEPOLIA_CHAIN_ID)
+    const expectedEmitter = addressToBytes32(EVM_BRIDGE_ADDRESS!);
+    const evmEmitterBytes = hexToBytes32Array(EVM_BRIDGE_ADDRESS!);
+
+    // New API: is_emitter_registered(chain_id, emitter_address) -> bool
+    const isRegistered = await bridge.methods
+        .is_emitter_registered(ARBITRUM_SEPOLIA_CHAIN_ID, evmEmitterBytes as any)
         .simulate({ from: adminAddress });
 
-    // registeredEmitter has emitter_address: [u8; 32] and enabled: boolean
-    const emitterBytes = registeredEmitter.emitter_address as number[];
-    const isEnabled = registeredEmitter.enabled as boolean;
-    const registeredHex = bytes32ArrayToHex(emitterBytes);
-
-    const expectedEmitter = addressToBytes32(EVM_BRIDGE_ADDRESS!);
-    const isRegistered = registeredHex.toLowerCase() === expectedEmitter.toLowerCase() && isEnabled;
-
     console.log(`  Expected: ${expectedEmitter}`);
-    console.log(`  Registered: ${registeredHex}`);
-    console.log(`  Enabled: ${isEnabled}`);
-    console.log(`  Status: ${isRegistered ? "✅ MATCH & ENABLED" : "❌ MISMATCH or DISABLED"}`);
+    console.log(`  Registered: ${isRegistered}`);
+    console.log(`  Status: ${isRegistered ? "✅ REGISTERED" : "❌ NOT REGISTERED"}`);
 
     return {
         side: "Aztec",
         expectedEmitter,
-        registeredEmitter: registeredHex,
+        registeredEmitter: isRegistered ? expectedEmitter : "0x0000000000000000000000000000000000000000000000000000000000000000",
         isRegistered,
-        isEnabled,
     };
 }
 

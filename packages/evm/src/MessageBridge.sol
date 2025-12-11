@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {BytesLib} from "wormhole/ethereum/contracts/libraries/external/BytesLib.sol";
+import {
+    BytesLib
+} from "wormhole/ethereum/contracts/libraries/external/BytesLib.sol";
 import {IWormhole} from "wormhole/ethereum/contracts/interfaces/IWormhole.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -50,28 +52,34 @@ contract MessageBridge is Ownable {
     uint8 public immutable finality;
 
     // Registered emitters: remoteChainId => emitterAddress
-    mapping(uint16 => bytes32) public registeredEmitters;
+    mapping(uint16 => mapping(bytes32 => bool)) public registeredEmitters;
 
     // Processed messages for replay protection: txId => value
     // Non-zero value means processed
-    mapping(bytes32 => uint256) public processedMessages;
+    mapping(bytes32 => bool) public nullifiers;
 
     // Nonce for outbound messages
     uint32 public outboundNonce;
 
-    // Last received message data
-    uint8 public lastReceivedValue;
-    uint16 public lastReceivedFromChain;
-    bytes32 public lastReceivedSender;
+    // Current value set via message passing
+    uint8 public currentValue;
 
     // ============================================================================
     // EVENTS
     // ============================================================================
 
     event EmitterRegistered(uint16 indexed chainId, bytes32 emitterAddress);
-    event MessageStored(bytes32 indexed sender, bytes32 indexed txId, uint256 payloadLength);
-    event ValueReceived(uint16 indexed sourceChainId, bytes32 indexed sender, uint8 value);
-    event ValueSent(address indexed sender, uint16 destinationChainId, uint8 value, uint64 sequence);
+    event ValueReceived(
+        uint16 indexed sourceChainId,
+        bytes32 indexed sender,
+        uint8 value
+    );
+    event ValueSent(
+        address indexed sender,
+        uint16 destinationChainId,
+        uint8 value,
+        uint64 sequence
+    );
 
     // ============================================================================
     // CONSTRUCTOR
@@ -119,7 +127,7 @@ contract MessageBridge is Ownable {
      */
     function registerEmitter(uint16 remoteChainId, bytes32 emitterAddress) external onlyOwner {
         require(emitterAddress != bytes32(0), "Emitter cannot be zero");
-        registeredEmitters[remoteChainId] = emitterAddress;
+        registeredEmitters[remoteChainId][emitterAddress] = true;
         emit EmitterRegistered(remoteChainId, emitterAddress);
     }
 
@@ -145,7 +153,10 @@ contract MessageBridge is Ownable {
         );
 
         uint256 messageFee = wormhole.messageFee();
-        require(msg.value >= messageFee, "Insufficient fee for Wormhole message");
+        require(
+            msg.value >= messageFee,
+            "Insufficient fee for Wormhole message"
+        );
 
         sequence = wormhole.publishMessage{value: messageFee}(
             outboundNonce,
@@ -156,7 +167,9 @@ contract MessageBridge is Ownable {
         outboundNonce++;
 
         if (msg.value > messageFee) {
-            (bool success, ) = msg.sender.call{value: msg.value - messageFee}("");
+            (bool success, ) = msg.sender.call{value: msg.value - messageFee}(
+                ""
+            );
             require(success, "Fee refund failed");
         }
 
@@ -179,111 +192,97 @@ contract MessageBridge is Ownable {
     /**
      * @dev Internal verification function for VAAs
      */
-    function _verify(bytes memory encodedVm) internal view returns (bytes memory) {
-        (IWormhole.VM memory vm, bool valid, string memory reason) = wormhole.parseAndVerifyVM(encodedVm);
+    function _verify(
+        bytes memory encodedVm
+    ) internal view returns (bytes memory) {
+        (IWormhole.VM memory vm, bool valid, string memory reason) = wormhole
+            .parseAndVerifyVM(encodedVm);
 
         require(valid, reason);
-        require(_verifyAuthorizedEmitter(vm), "Invalid emitter: source not recognized");
+        require(
+            _verifyAuthorizedEmitter(vm),
+            "Invalid emitter: source not recognized"
+        );
 
         return vm.payload;
     }
 
-    /**
-     * @dev Process the Aztec Wormhole payload
-     *
-     * Payload structure after guardian serialization (13 Fields × 32 bytes = 416 bytes):
-     * - Bytes 0-31:   Field 0 = msg_sender (Wormhole contract caller = MessageBridge)
-     * - Bytes 32-63:  Field 1 = sequence
-     * - Bytes 64-95:  Field 2 = nonce
-     * - Bytes 96-127: Field 3 = consistency
-     * - Bytes 128-159: Field 4 = timestamp
-     * - Bytes 160-191: Field 5 = reversed chunk 0 (value at byte 191)
-     * - Bytes 192-223: Field 6 = reversed chunk 1 (sender bytes reversed)
-     * - Bytes 224-255: Field 7 = reversed chunk 2
-     * - ... (remaining Fields are zeros)
-     *
-     * Due to Field::from_le_bytes() in Aztec, the chunk bytes are reversed.
-     * Chunk 0 was: [value, srcChainHi, srcChainLo, dstChainHi, dstChainLo, payloadId, ...]
-     * After reversal in Field 5: [..., payloadId, dstChainLo, dstChainHi, srcChainLo, srcChainHi, value]
-     * So value is at byte 191 (Field 5 byte 31)
-     */
     function _processPayload(bytes memory payload) internal {
-        require(evmChainId == block.chainid, "Invalid fork");
 
-        // Minimum payload length: 192 bytes to reach value at byte 191
-        require(payload.length >= 192, "Payload too short");
+        // Minimum: 32 (txId) + 31 (chunk0) + 31 (chunk1) + 7 (to reach value in chunk2) = 101 bytes
+        require(payload.length >= 101, "Payload too short");
 
-        // Extract txId from the first 32 bytes (Field 0 = emitter/caller address)
+        // Extract txId from first 32 bytes (added by Aztec Guardian)
         bytes32 txId;
         assembly {
             txId := mload(add(payload, 32))
         }
-        require(txId != bytes32(0), "Invalid txId extracted");
+        require(txId != bytes32(0), "Invalid txId");
 
-        // Check replay protection
-        require(processedMessages[txId] == 0, "Already processed");
+        // Check if already processed & nullify
+        require(nullifiers[txId] == false, "Already processed");
+        nullifiers[txId] = true;
 
-        // Extract value from byte 191 (last byte of Field 5)
-        // payload memory layout: [length (32 bytes)][data...]
-        // To read byte 191 of data: add(payload, 32 + 191) = add(payload, 223)
-        // mload reads 32 bytes, byte 191 is the first byte of that read
-        uint256 value;
+        // Chunk 0 starts at byte 32
+        // [0]: messageId
+        // [1-2]: sourceChainId (big-endian)
+        // [3-4]: destinationChainId (big-endian)
+        // [5-30]: sender[0-25]
+
+        uint8 messageId = uint8(payload[32]);
+
+        uint16 sourceChainId = (uint16(uint8(payload[33])) << 8) |
+            uint16(uint8(payload[34]));
+        uint16 destinationChainId = (uint16(uint8(payload[35])) << 8) |
+            uint16(uint8(payload[36]));
+
+        // Extract sender (26 bytes from chunk0[5-30], 6 bytes from chunk1[0-5])
+        bytes32 sender;
         assembly {
-            let valueData := mload(add(payload, 223))
-            value := shr(248, valueData)
+            let ptr := add(payload, 32) // skip length prefix
+
+            // chunk0 starts at ptr + 32 (after txId)
+            // sender starts at chunk0 + 5 = ptr + 32 + 5 = ptr + 37
+            let senderStart := add(ptr, 37)
+
+            // Load 32 bytes starting at sender position
+            let part1 := mload(senderStart) // contains sender[0-25] + 6 bytes of garbage
+
+            // chunk1 starts at ptr + 32 + 31 = ptr + 63
+            // sender[26-31] is at chunk1[0-5]
+            let part2 := mload(add(ptr, 63)) // contains sender[26-31] in first 6 bytes
+
+            // Combine: high 26 bytes from part1, low 6 bytes from part2
+            sender := or(
+                and(
+                    part1,
+                    0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000
+                ),
+                shr(208, part2) // shift right 208 bits (26 bytes) to move 6 bytes to low position
+            )
         }
 
-        // After LE reversal, Field 5 layout (bytes 160-191):
-        // [0(160), zeros(161-185), payloadId(186), dstLo(187), dstHi(188), srcLo(189), srcHi(190), value(191)]
+        // Value is in chunk2 at position 6
+        // chunk2 starts at byte 32 + 31 + 31 = 94
+        // value is at 94 + 6 = 100
+        uint8 value = uint8(payload[100]);
 
-        // Extract source chain ID: srcHi at 190, srcLo at 189
-        uint16 sourceChainId = (uint16(uint8(payload[190])) << 8) | uint16(uint8(payload[189]));
-
-        // Extract destination chain ID: dstHi at 188, dstLo at 187
-        uint16 destChainId = (uint16(uint8(payload[188])) << 8) | uint16(uint8(payload[187]));
-
-        // Verify destination chain
-        require(destChainId == chainId, "Wrong destination chain");
-
-        // Store the processed message
-        processedMessages[txId] = value + 1; // +1 so 0 means unprocessed
-
-        // Store last received data
-        lastReceivedValue = uint8(value);
-        lastReceivedFromChain = sourceChainId;
-        lastReceivedSender = txId;
-
-        emit MessageStored(txId, txId, payload.length);
-        emit ValueReceived(sourceChainId, txId, uint8(value));
+        currentValue = value;
+        emit ValueReceived(sourceChainId, sender, value);
     }
 
     /**
      * @dev Verifies that a VAA is from a registered authorized emitter
      */
-    function _verifyAuthorizedEmitter(IWormhole.VM memory vm) internal view returns (bool) {
-        bytes32 registeredEmitter = registeredEmitters[vm.emitterChainId];
-        return registeredEmitter == vm.emitterAddress;
+    function _verifyAuthorizedEmitter(
+        IWormhole.VM memory vm
+    ) internal view returns (bool) {
+        return registeredEmitters[vm.emitterChainId][vm.emitterAddress];
     }
 
     // ============================================================================
     // VIEW FUNCTIONS
     // ============================================================================
-
-    function getLastMessage() external view returns (uint8 value, uint16 fromChain, bytes32 sender) {
-        return (lastReceivedValue, lastReceivedFromChain, lastReceivedSender);
-    }
-
-    function getProcessedMessage(bytes32 txId) public view returns (uint256) {
-        return processedMessages[txId];
-    }
-
-    function getRegisteredEmitter(uint16 remoteChainId) external view returns (bytes32) {
-        return registeredEmitters[remoteChainId];
-    }
-
-    function getMessageFee() external view returns (uint256) {
-        return wormhole.messageFee();
-    }
 
     // ============================================================================
     // INTERNAL FUNCTIONS
@@ -295,13 +294,14 @@ contract MessageBridge is Ownable {
         uint16 sourceChainId,
         uint16 destinationChainId
     ) internal pure returns (bytes memory) {
-        return abi.encodePacked(
-            PAYLOAD_ID_MESSAGE,  // 1 byte
-            sender,              // 32 bytes
-            value,               // 1 byte
-            sourceChainId,       // 2 bytes
-            destinationChainId   // 2 bytes
-        );
+        return
+            abi.encodePacked(
+                PAYLOAD_ID_MESSAGE, // 1 byte
+                sourceChainId, // 2 bytes
+                destinationChainId, // 2 bytes
+                sender, // 32 bytes
+                value // 1 byte
+            );
         // Total: 38 bytes
     }
 

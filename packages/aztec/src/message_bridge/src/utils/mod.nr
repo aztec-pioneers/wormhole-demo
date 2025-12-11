@@ -12,7 +12,7 @@ pub global VAA_BODY_START: u32 = 6 + 66; // hardcoded as 1 signature
 pub global VAA_MAX_LENGTH: u32 = 2000; // max VAA length in Wormhole spec
 pub global VAA_BODY_MAX_LENGTH: u32 = 1860; // max body length in Wormhole VAA spec
 // we know the actual payload length we will always observe
-pub global MESSAGE_PAYLOAD_LENGTH: u32 = 39; 
+pub global MESSAGE_PAYLOAD_LENGTH: u32 = 38; 
 pub global MESSAGE_NULLIFIER_LENGTH: u32 = VAA_BODY_START + MESSAGE_PAYLOAD_LENGTH;
 pub global MESSAGE_NULLIFIER_PACKED_LENGTH: u32 = 4; // ceil(MESSAGE_NULLIFIER_LENGTH / 31)
 
