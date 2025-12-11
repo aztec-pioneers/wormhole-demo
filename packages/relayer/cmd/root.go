@@ -40,23 +40,12 @@ func init() {
 
 	rootCmd.PersistentFlags().String(
 		"wormhole-contract",
-		"0x0848d2af89dfd7c0e171238f9216399e61e908cd31b0222a920f1bf621a16ed6",
+		"",
 		"Wormhole core contract address")
-
-	rootCmd.PersistentFlags().String(
-		"emitter-address",
-		"0x0848d2af89dfd7c0e171238f9216399e61e908cd31b0222a920f1bf621a16ed6",
-		"Emitter address to monitor")
-
-	// Optional Verification Service
 
 	// Bind flags to viper for env variable support
 	viper.BindPFlag("spy_rpc_host", rootCmd.PersistentFlags().Lookup("spy-rpc-host"))
-	viper.BindPFlag("source_chain_id", rootCmd.PersistentFlags().Lookup("source-chain-id"))
-	viper.BindPFlag("dest_chain_id", rootCmd.PersistentFlags().Lookup("dest-chain-id"))
 	viper.BindPFlag("wormhole_contract", rootCmd.PersistentFlags().Lookup("wormhole-contract"))
-	viper.BindPFlag("emitter_address", rootCmd.PersistentFlags().Lookup("emitter-address"))
-	viper.BindPFlag("verification_service_url", rootCmd.PersistentFlags().Lookup("verification-service-url"))
 
 	cobra.OnInitialize(initConfig)
 }

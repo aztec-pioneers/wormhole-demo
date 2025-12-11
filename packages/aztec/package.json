@@ -48,7 +48,7 @@
   },
   "scripts": {
     "build": "tsx ./scripts/compile.ts",
-    "setup:accounts": "tsx ./scripts/setupAccounts.ts",
+    "setup:account": "tsx ./scripts/setupAccounts.ts",
     "setup:relayerAccount": "tsx ./scripts/relayerAccount.ts",
     "setup:deploy": "tsx ./scripts/deploy.ts",
     "setup:configure": "tsx ./scripts/configure.ts",

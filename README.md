@@ -24,19 +24,22 @@ cd packages/evm && forge install && cd ../..
 # Copy environment template
 cp .env.example .env
 
-# Edit .env with your values (PRIVATE_KEY is required)
+# Edit .env with your values (EVM_PRIVATE_KEY is required), the rest of existing .env should be fine
 ```
 
 ## Build
 
 ```bash
-# Build all packages
-pnpm build
-
-# Build individual packages
+# Build aztec contracts
 pnpm build:aztec
-pnpm build:evm
-pnpm build:relayer
+```
+
+## Aztec Account Setup
+
+```bash
+# Generate and register a new Aztec relayer account
+# (Saves AZTEC_RELAYER_PRIVATE_KEY and AZTEC_RELAYER_SALT to .env)
+pnpm --filter @aztec-wormhole-demo/aztec-contracts setup:account
 ```
 
 ## Deploy
@@ -68,16 +71,48 @@ This will:
 - Register the Aztec bridge as a trusted emitter on the EVM bridge
 - Register the EVM bridge as a trusted emitter on the Aztec bridge
 
-## Run Relayer
+### Verify Configuration
 
 ```bash
-# Start services (PXE, Wormhole Spy, Relayers)
+# Check that emitters are registered correctly on both chains
+pnpm check:emitters
+```
+
+## Run Relayer Services
+
+```bash
+# Start services (Wormhole Spy, VAA Service, Relayers)
 docker compose up
 ```
 
-## Send Message
+## Send Messages
+
+### Aztec to EVM
 
 ```bash
-# From Aztec to EVM
-pnpm --filter @wormhole-demo/aztec send
+# Send with specific value
+pnpm send-to-evm 100
+
+# Send using public context
+pnpm send-to-evm --public
+
+# Send using private context (explicit)
+pnpm send-to-evm --private
+```
+
+### EVM to Aztec
+
+```bash
+# Send value from EVM to Aztec
+pnpm send-to-aztec
+
+# Send with specific value
+pnpm send-to-aztec 42
+```
+
+## Read Values
+
+```bash
+# Read current values on both EVM and Aztec bridges
+pnpm read
 ```

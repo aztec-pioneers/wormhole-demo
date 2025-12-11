@@ -4,20 +4,8 @@ import { AztecNode } from "@aztec/aztec.js/node";
 import { BaseWallet } from "@aztec/aztec.js/wallet";
 import { PXEConfig } from "@aztec/pxe/config";
 import { getPriorityFeeOptions, getSponsoredPaymentMethod } from "../../ts/fees";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
-import { existsSync, readFileSync } from "fs";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { Fr } from "@aztec/aztec.js/fields";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const accountsFilePath = join(__dirname, "../data/accounts.json");
-
-export type AccountData = {
-    secretKey: string;
-    salt: string;
-    address: string;
-}
 
 export function getTestnetPxeConfig(): Partial<PXEConfig> {
     const { ROLLUP_VERSION } = process.env;
@@ -64,20 +52,21 @@ export async function testnetSendWaitOpts(
     };
 }
 
-export const loadAccounts = async (
+export const loadAccount = async (
     node: AztecNode,
     wallet: TestWallet
-): Promise<AztecAddress[]> => {
+): Promise<AztecAddress> => {
     if (!await isDevnet(node))
         throw new Error("Can only run Wormhole on devnet!");
-    if (!existsSync(accountsFilePath))
-        throw new Error("No accounts found. Run 'pnpm setup:accounts' first.");
-    const accounts: AccountData[] = JSON.parse(readFileSync(accountsFilePath, "utf-8"));
-    console.log(`Loaded ${accounts.length} accounts from fs...`);
-    for (const account of accounts) {
-        const secretKey = Fr.fromString(account.secretKey);
-        const salt = Fr.fromString(account.salt);
-        await wallet.createSchnorrAccount(secretKey, salt);
+
+    const { AZTEC_RELAYER_PRIVATE_KEY, AZTEC_RELAYER_SALT } = process.env;
+    if (!AZTEC_RELAYER_PRIVATE_KEY || !AZTEC_RELAYER_SALT) {
+        throw new Error("AZTEC_RELAYER_PRIVATE_KEY and AZTEC_RELAYER_SALT not set in .env. Run 'pnpm setup:account' first.");
     }
-    return accounts.map(acc => AztecAddress.fromString(acc.address));
+
+    const secretKey = Fr.fromString(AZTEC_RELAYER_PRIVATE_KEY);
+    const salt = Fr.fromString(AZTEC_RELAYER_SALT);
+    const manager = await wallet.createSchnorrAccount(secretKey, salt);
+    console.log(`Loaded account: ${manager.address.toString()}`);
+    return manager.address;
 }

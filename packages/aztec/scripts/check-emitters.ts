@@ -7,7 +7,7 @@ import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { MessageBridgeContract, MessageBridgeContractArtifact } from "../ts/artifacts";
-import { loadAccounts, getTestnetPxeConfig } from "./utils/aztec";
+import { loadAccount, getTestnetPxeConfig } from "./utils/aztec";
 import { addressToBytes32, hexToBytes32Array } from "./utils/bytes";
 import { createEvmClients, MESSAGE_BRIDGE_ABI } from "./utils/evm";
 import { AZTEC_WORMHOLE_CHAIN_ID, ARBITRUM_SEPOLIA_CHAIN_ID } from "../ts/constants";
@@ -71,7 +71,7 @@ async function checkAztecBridge(): Promise<CheckResult> {
 
     const node = createAztecNodeClient(AZTEC_NODE_URL!);
     const wallet = await TestWallet.create(node, getTestnetPxeConfig());
-    const [adminAddress] = await loadAccounts(node, wallet);
+    const adminAddress = await loadAccount(node, wallet);
 
     // Register the bridge contract
     const bridgeAddress = AztecAddress.fromString(AZTEC_BRIDGE_ADDRESS!);

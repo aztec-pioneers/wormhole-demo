@@ -67,12 +67,18 @@ func init() {
 
 	aztecCmd.PersistentFlags().Uint16("chain-id", DefaultArbitrumChainIDForAztec, "Source chain ID to listen for (Arbitrum Sepolia = 10003)")
 
+	aztecCmd.Flags().String(
+		"emitter-address",
+		"",
+		"Source emitter address to filter (hex, e.g., EVM bridge address)")
+
 	// Bind flags to viper
 	viper.BindPFlag("aztec_pxe_url", aztecCmd.Flags().Lookup("aztec-pxe-url"))
 	viper.BindPFlag("aztec_wallet_address", aztecCmd.Flags().Lookup("aztec-wallet-address"))
 	viper.BindPFlag("aztec_target_contract", aztecCmd.Flags().Lookup("aztec-target-contract"))
 	viper.BindPFlag("verification_service_url", aztecCmd.Flags().Lookup("verification-service-url"))
 	viper.BindPFlag("chain_id", aztecCmd.PersistentFlags().Lookup("chain-id"))
+	viper.BindPFlag("emitter_address", aztecCmd.Flags().Lookup("emitter-address"))
 }
 
 type AztecConfig struct {
@@ -82,11 +88,15 @@ type AztecConfig struct {
 	AztecWalletAddress     string // Aztec wallet address to use
 	AztecTargetContract    string // Target contract on Aztec
 	VerificationServiceURL string // Optional verification service URL
+	EmitterAddress         string // Source emitter address to filter
 }
 
 func runAztecRelay(cmd *cobra.Command, args []string) error {
 	logger := configureLogging(cmd, args)
 	logger.Info("Starting Aztec relayer (EVM -> Aztec)")
+
+	// Get emitter address from flag (viper binding doesn't work reliably for subcommand flags)
+	emitterAddress, _ := cmd.Flags().GetString("emitter-address")
 
 	config := AztecConfig{
 		SpyRPCHost:             viper.GetString("spy_rpc_host"),
@@ -95,6 +105,7 @@ func runAztecRelay(cmd *cobra.Command, args []string) error {
 		AztecWalletAddress:     viper.GetString("aztec_wallet_address"),
 		AztecTargetContract:    viper.GetString("aztec_target_contract"),
 		VerificationServiceURL: viper.GetString("verification_service_url"),
+		EmitterAddress:         emitterAddress,
 	}
 
 	logger.Info("Configuration",
@@ -103,7 +114,8 @@ func runAztecRelay(cmd *cobra.Command, args []string) error {
 		zap.String("aztecPXE", config.AztecPXEURL),
 		zap.String("aztecWallet", config.AztecWalletAddress),
 		zap.String("aztecTarget", config.AztecTargetContract),
-		zap.String("verificationService", config.VerificationServiceURL))
+		zap.String("verificationService", config.VerificationServiceURL),
+		zap.String("emitterFilter", config.EmitterAddress))
 
 	spyClient, err := clients.NewSpyClient(logger, config.SpyRPCHost)
 	if err != nil {
@@ -137,7 +149,12 @@ func runAztecRelay(cmd *cobra.Command, args []string) error {
 
 	submitter := submitter.NewAztecSubmitter(logger,
 		config.AztecTargetContract, pxeClient, verificationService)
-	vaaProcessor := internal.NewDefaultVAAProcessor(logger, internal.VAAProcessorConfig{ChainID: config.ChainID}, submitter)
+	vaaProcessor := internal.NewDefaultVAAProcessor(logger,
+		internal.VAAProcessorConfig{
+			ChainID:        config.ChainID,
+			EmitterAddress: config.EmitterAddress,
+		},
+		submitter)
 
 	// Create and start relayer
 	relayer, err := internal.NewRelayer(logger, spyClient, vaaProcessor)

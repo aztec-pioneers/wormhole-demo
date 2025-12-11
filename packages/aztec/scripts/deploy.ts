@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 import { writeFileSync } from "fs";
 import { MessageBridgeContract } from "../ts/artifacts";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
-import { loadAccounts, MESSAGE_FEE, TESTNET_PXE_CONFIG, testnetSendWaitOpts } from "./utils/aztec";
+import { loadAccount, MESSAGE_FEE, TESTNET_PXE_CONFIG, testnetSendWaitOpts } from "./utils/aztec";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { AZTEC_WORMHOLE_CHAIN_ID } from "../ts/constants";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
@@ -23,9 +23,9 @@ const main = async () => {
     console.log(`Connecting to Aztec Node at ${AZTEC_NODE_URL}...`);
     const node = createAztecNodeClient(AZTEC_NODE_URL);
     
-    // Load accounts
+    // Load account
     const wallet = await TestWallet.create(node, TESTNET_PXE_CONFIG);
-    const [adminAddress] = await loadAccounts(node, wallet);
+    const adminAddress = await loadAccount(node, wallet);
 
     console.log(`Using admin account: ${adminAddress.toString()}`);
 

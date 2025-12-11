@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/wormhole-demo/relayer/internal/clients"
-	vaaLib "github.com/wormhole-foundation/wormhole/sdk/vaa"
 	"go.uber.org/zap"
 )
 
@@ -168,8 +167,8 @@ func (r *Relayer) processVAA(ctx context.Context, vaaBytes []byte) error {
 		// Continue processing
 	}
 
-	// Parse the VAA
-	wormholeVAA, err := vaaLib.Unmarshal(vaaBytes)
+	// Parse the VAA (using permissive parser that handles v1 and v2)
+	wormholeVAA, err := ParseVAAPermissive(vaaBytes)
 	if err != nil {
 		r.logger.Error("Failed to parse VAA", zap.Error(err))
 		return err
@@ -180,9 +179,6 @@ func (r *Relayer) processVAA(ctx context.Context, vaaBytes []byte) error {
 	if len(wormholeVAA.Payload) >= 32 {
 		txIDBytes := wormholeVAA.Payload[:32]
 		txID = fmt.Sprintf("0x%x", txIDBytes)
-		r.logger.Debug("Extracted txID from payload", zap.String("txID", txID))
-	} else {
-		r.logger.Debug("Payload too short to contain txID", zap.Int("payload_length", len(wormholeVAA.Payload)))
 	}
 
 	// Create VAA data with essential information
@@ -194,12 +190,6 @@ func (r *Relayer) processVAA(ctx context.Context, vaaBytes []byte) error {
 		Sequence:   wormholeVAA.Sequence,
 		TxID:       txID,
 	}
-
-	r.logger.Debug("Processing VAA",
-		zap.Uint16("chain", vaaData.ChainID),
-		zap.Uint64("sequence", vaaData.Sequence),
-		zap.String("emitter", vaaData.EmitterHex),
-		zap.String("sourceTxID", vaaData.TxID))
 
 	// Use the passed context when calling the processor
 	if _, err := r.vaaProcessor.ProcessVAA(ctx, *vaaData); err != nil {

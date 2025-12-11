@@ -6,7 +6,7 @@ import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { MessageBridgeContract, MessageBridgeContractArtifact, WormholeContractArtifact } from "../ts/artifacts";
-import { loadAccounts, getTestnetPxeConfig, testnetSendWaitOpts } from "./utils/aztec";
+import { loadAccount, getTestnetPxeConfig, testnetSendWaitOpts } from "./utils/aztec";
 import { ARBITRUM_SEPOLIA_CHAIN_ID } from "../ts/constants";
 import { Fr } from "@aztec/aztec.js/fields";
 
@@ -49,9 +49,9 @@ const main = async () => {
     console.log(`Connecting to Aztec Node at ${AZTEC_NODE_URL}...`);
     const node = createAztecNodeClient(AZTEC_NODE_URL);
 
-    // Create wallet and load accounts
+    // Create wallet and load account
     const wallet = await TestWallet.create(node, getTestnetPxeConfig());
-    const [senderAddress] = await loadAccounts(node, wallet);
+    const senderAddress = await loadAccount(node, wallet);
 
     console.log(`Using account: ${senderAddress.toString()}`);
 

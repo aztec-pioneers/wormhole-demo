@@ -62,6 +62,11 @@ func init() {
 		DefaultAztecChainIDForEVM,
 		"Source chain ID to listen for (Aztec = 56)")
 
+	evmCmd.Flags().String(
+		"emitter-address",
+		"",
+		"Source emitter address to filter (hex, e.g., Aztec bridge address)")
+
 	// Mark private key as required
 	evmCmd.MarkFlagRequired("private-key")
 
@@ -70,6 +75,7 @@ func init() {
 	viper.BindPFlag("private_key", evmCmd.Flags().Lookup("private-key"))
 	viper.BindPFlag("evm_target_contract", evmCmd.Flags().Lookup("evm-target-contract"))
 	viper.BindPFlag("chain_id", evmCmd.PersistentFlags().Lookup("chain-id"))
+	viper.BindPFlag("emitter_address", evmCmd.Flags().Lookup("emitter-address"))
 }
 
 type EVMConfig struct {
@@ -78,11 +84,15 @@ type EVMConfig struct {
 	EVMRPCURL         string // RPC URL for EVM chain
 	PrivateKey        string // Private key for EVM transactions
 	EVMTargetContract string // Target contract on EVM
+	EmitterAddress    string // Source emitter address to filter
 }
 
 func runEVMRelay(cmd *cobra.Command, args []string) error {
 	logger := configureLogging(cmd, args)
 	logger.Info("Starting EVM relayer (Aztec -> EVM)")
+
+	// Get emitter address from flag (viper binding doesn't work reliably for subcommand flags)
+	emitterAddress, _ := cmd.Flags().GetString("emitter-address")
 
 	config := EVMConfig{
 		SpyRPCHost:        viper.GetString("spy_rpc_host"),
@@ -90,6 +100,7 @@ func runEVMRelay(cmd *cobra.Command, args []string) error {
 		EVMRPCURL:         viper.GetString("evm_rpc_url"),
 		PrivateKey:        viper.GetString("private_key"),
 		EVMTargetContract: viper.GetString("evm_target_contract"),
+		EmitterAddress:    emitterAddress,
 	}
 
 	// Validate private key is provided
@@ -101,7 +112,8 @@ func runEVMRelay(cmd *cobra.Command, args []string) error {
 		zap.String("spyRPC", config.SpyRPCHost),
 		zap.Uint16("chainId", config.ChainID),
 		zap.String("evmRPC", config.EVMRPCURL),
-		zap.String("evmTarget", config.EVMTargetContract))
+		zap.String("evmTarget", config.EVMTargetContract),
+		zap.String("emitterFilter", config.EmitterAddress))
 
 	// Create spy client
 	spyClient, err := clients.NewSpyClient(logger, config.SpyRPCHost)
@@ -123,7 +135,10 @@ func runEVMRelay(cmd *cobra.Command, args []string) error {
 
 	// Create VAA processor
 	vaaProcessor := internal.NewDefaultVAAProcessor(logger,
-		internal.VAAProcessorConfig{ChainID: config.ChainID},
+		internal.VAAProcessorConfig{
+			ChainID:        config.ChainID,
+			EmitterAddress: config.EmitterAddress,
+		},
 		evmSubmitter)
 
 	// Create and start relayer

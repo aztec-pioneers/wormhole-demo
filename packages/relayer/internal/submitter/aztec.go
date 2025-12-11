@@ -26,8 +26,8 @@ func NewAztecSubmitter(logger *zap.Logger, targetContract string, pxeClient *cli
 }
 
 func (s *AztecSubmitter) SubmitVAA(ctx context.Context, vaaBytes []byte) (string, error) {
-	// Create a context with timeout for submission operations
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	// Create a context with timeout for submission operations (15 minutes for Aztec)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 
 	s.logger.Info("Submitting VAA to Aztec",
