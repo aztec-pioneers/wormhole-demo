@@ -15,14 +15,14 @@ import { AZTEC_WORMHOLE_CHAIN_ID, ARBITRUM_SEPOLIA_CHAIN_ID } from "../ts/consta
 const {
     AZTEC_NODE_URL,
     ARBITRUM_RPC_URL,
-    PRIVATE_KEY,
+    EVM_PRIVATE_KEY,
     AZTEC_BRIDGE_ADDRESS,
     EVM_BRIDGE_ADDRESS,
 } = process.env;
 
 if (!AZTEC_NODE_URL) throw new Error("AZTEC_NODE_URL not set in .env");
 if (!ARBITRUM_RPC_URL) throw new Error("ARBITRUM_RPC_URL not set in .env");
-if (!PRIVATE_KEY) throw new Error("PRIVATE_KEY not set in .env");
+if (!EVM_PRIVATE_KEY) throw new Error("EVM_PRIVATE_KEY not set in .env");
 if (!AZTEC_BRIDGE_ADDRESS) throw new Error("AZTEC_BRIDGE_ADDRESS not set in .env - deploy Aztec bridge first");
 if (!EVM_BRIDGE_ADDRESS) throw new Error("EVM_BRIDGE_ADDRESS not set in .env - deploy EVM bridge first");
 
@@ -32,7 +32,7 @@ async function configureEvmBridge() {
     console.log(`Aztec Chain ID: ${AZTEC_WORMHOLE_CHAIN_ID}`);
     console.log(`Aztec Bridge: ${AZTEC_BRIDGE_ADDRESS}`);
 
-    const { account, publicClient, walletClient } = createEvmClients(ARBITRUM_RPC_URL!, PRIVATE_KEY!);
+    const { account, publicClient, walletClient } = createEvmClients(ARBITRUM_RPC_URL!, EVM_PRIVATE_KEY!);
     const evmBridgeAddress = getAddress(EVM_BRIDGE_ADDRESS!);
 
     // Check if already registered
@@ -104,22 +104,7 @@ async function configureAztecBridge() {
         wallet
     );
 
-    // Check if already registered
-    const existingEmitter = await bridge.methods.get_registered_emitter(ARBITRUM_SEPOLIA_CHAIN_ID)
-        .simulate({ from: adminAddress });
-
     const evmEmitterBytes = hexToBytes32Array(EVM_BRIDGE_ADDRESS!);
-
-    if (existingEmitter.enabled) {
-        const existingBytes = Array.from(existingEmitter.address);
-        const isMatch = existingBytes.every((b, i) => b === evmEmitterBytes[i]);
-
-        if (isMatch) {
-            console.log("EVM emitter already registered on Aztec bridge");
-            return;
-        }
-        console.log("Warning: Different emitter already registered, will update");
-    }
 
     // Check ownership
     const owner = await bridge.methods.get_owner().simulate({ from: adminAddress });

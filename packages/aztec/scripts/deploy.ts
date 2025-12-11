@@ -8,7 +8,7 @@ import { MessageBridgeContract } from "../ts/artifacts";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { loadAccounts, MESSAGE_FEE, TESTNET_PXE_CONFIG, testnetSendWaitOpts } from "./utils/aztec";
 import { TestWallet } from "@aztec/test-wallet/server";
-import { AZTEC_TEST_CHAIN_ID } from "@aztec/ethereum";
+import { AZTEC_WORMHOLE_CHAIN_ID } from "../ts/constants";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { updateRootEnv } from "./utils/env";
 
@@ -34,7 +34,7 @@ const main = async () => {
     const messageBridge = await MessageBridgeContract.deploy(
         wallet,
         AztecAddress.fromString(AZTEC_WORMHOLE_ADDRESS),
-        AZTEC_TEST_CHAIN_ID,
+        AZTEC_WORMHOLE_CHAIN_ID,  // Use Wormhole chain ID (56), not Aztec testnet chain ID
         adminAddress,
         MESSAGE_FEE
     ).send(opts.send).deployed(opts.wait);
@@ -55,10 +55,7 @@ const main = async () => {
     console.log(`Saved addresses to ${addressesFilePath}`);
 
     // Update root .env for docker automatically
-    updateRootEnv({
-        AZTEC_BRIDGE_ADDRESS: bridgeAddress,
-        AZTEC_EMITTER_ADDRESS: bridgeAddress,
-    });
+    updateRootEnv({AZTEC_BRIDGE_ADDRESS: bridgeAddress});
     console.log("Auto-updated root .env file with deployment addresses for docker");
 
     console.log("✅ Deployment complete!");

@@ -10,7 +10,7 @@ import { loadAccounts, getTestnetPxeConfig } from "./utils/aztec";
 import { createEvmClients, MESSAGE_BRIDGE_ABI } from "./utils/evm";
 import { getAddress } from "viem";
 
-const { AZTEC_NODE_URL, AZTEC_BRIDGE_ADDRESS, ARBITRUM_RPC_URL, PRIVATE_KEY, EVM_BRIDGE_ADDRESS } = process.env;
+const { AZTEC_NODE_URL, AZTEC_BRIDGE_ADDRESS, ARBITRUM_RPC_URL, EVM_PRIVATE_KEY, EVM_BRIDGE_ADDRESS } = process.env;
 
 async function readEvmBridge() {
     if (!ARBITRUM_RPC_URL || !EVM_BRIDGE_ADDRESS) {
@@ -19,7 +19,7 @@ async function readEvmBridge() {
     }
 
     try {
-        const { publicClient } = createEvmClients(ARBITRUM_RPC_URL, PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001");
+        const { publicClient } = createEvmClients(ARBITRUM_RPC_URL, EVM_PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001");
         const bridgeAddress = getAddress(EVM_BRIDGE_ADDRESS);
 
         const [value, fromChain, sender] = await publicClient.readContract({

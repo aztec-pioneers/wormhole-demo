@@ -1,31 +1,31 @@
 services:
-  # PXE - Aztec PXE connected to devnet
-  pxe:
-    image: aztecprotocol/aztec:latest
+  # VAA Verification Service - Aztec Wormhole VAA verifier
+  vaa-service:
+    build:
+      context: .
+      dockerfile: packages/aztec/ts/vaaService/Dockerfile
     ports:
-      - "8080:8080"
-    entrypoint: ["/bin/bash", "-c"]
-    command:
-      - |
-        node --no-warnings /usr/src/yarn-project/aztec/dest/bin/index.js start --pxe
+      - "3000:3000"
     environment:
-      - AZTEC_PORT=8080
-      - LOG_LEVEL=info
-      - AZTEC_NODE_URL=https://aztec-alpha-testnet-fullnode.zkv.xyz
-      - ETHEREUM_HOSTS=https://eth-sepolia.public.blastapi.io
-      - L1_CHAIN_ID=11155111
-      - ROLLUP_VERSION=845231713
-      - PXE_PROVER_ENABLED=true
+      - PORT=3000
+      # Aztec devnet configuration
+      - AZTEC_NODE_URL=${AZTEC_NODE_URL}
+      - ROLLUP_VERSION=${ROLLUP_VERSION}
+      # Relayer account credentials
+      - AZTEC_RELAYER_PRIVATE_KEY=${AZTEC_RELAYER_PRIVATE_KEY}
+      - AZTEC_RELAYER_SALT=${AZTEC_RELAYER_SALT}
+      # Wormhole contract on Aztec
+      - AZTEC_WORMHOLE_ADDRESS=${AZTEC_WORMHOLE_ADDRESS}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/status"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 60s
     restart: unless-stopped
     networks:
       - relayer-network
-    
+
   # Wormhole Spy - monitors guardian network for VAAs
   wormhole-spy:
     image: ghcr.io/wormhole-foundation/guardiand:latest
@@ -46,7 +46,7 @@ services:
     networks:
       - relayer-network
     restart: unless-stopped
-    
+
 
   # Relayer for Aztec -> EVM (listens for Aztec VAAs, submits to EVM)
   relayer-to-evm:
@@ -55,11 +55,13 @@ services:
       dockerfile: Dockerfile
     command:
       - evm
-      - --private-key=${PRIVATE_KEY}
+      - --private-key=${EVM_PRIVATE_KEY}
       - --evm-target-contract=${EVM_BRIDGE_ADDRESS}
     environment:
       # Wormhole Spy (prefixed for viper)
       - WORMHOLE_RELAYER_SPY_RPC_HOST=wormhole-spy:7073
+      # EVM RPC URL
+      - WORMHOLE_RELAYER_EVM_RPC_URL=${ARBITRUM_RPC_URL}
     depends_on:
       - wormhole-spy
     networks:
@@ -67,8 +69,7 @@ services:
     restart: unless-stopped
 
 
-  # Relayer for EVM -> Aztec (listens for EVM VAAs, submits to Aztec)
-  # Note: Requires external PXE to be running
+  # Relayer for EVM -> Aztec (listens for EVM VAAs, submits to Aztec VAA service)
   relayer-to-aztec:
     build:
       context: ./packages/relayer
@@ -78,15 +79,13 @@ services:
       # Wormhole Spy (prefixed for viper)
       - WORMHOLE_RELAYER_SPY_RPC_HOST=wormhole-spy:7073
       # Source chain (EVM - Arbitrum Sepolia)
-      - WORMHOLE_RELAYER_CHAIN_ID=10003
-      # Aztec target (connect to PXE container)
-      - WORMHOLE_RELAYER_AZTEC_PXE_URL=http://pxe:8080
-      - WORMHOLE_RELAYER_AZTEC_TARGET_CONTRACT=${AZTEC_BRIDGE_ADDRESS}
-      - WORMHOLE_RELAYER_VERIFICATION_SERVICE_URL=http://pxe:8080/verify
+      - WORMHOLE_RELAYER_CHAIN_ID=${WORMHOLE_CHAIN_ID:-10003}
+      # VAA verification service
+      - WORMHOLE_RELAYER_VERIFICATION_SERVICE_URL=http://vaa-service:3000/verify
     depends_on:
       wormhole-spy:
         condition: service_started
-      pxe:
+      vaa-service:
         condition: service_healthy
     networks:
       - relayer-network

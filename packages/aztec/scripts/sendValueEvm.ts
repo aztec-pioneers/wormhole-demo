@@ -6,10 +6,10 @@ import { createEvmClients, MESSAGE_BRIDGE_ABI } from "./utils/evm";
 import { getAddress, parseEther } from "viem";
 import { AZTEC_WORMHOLE_CHAIN_ID } from "../ts/constants";
 
-const { ARBITRUM_RPC_URL, PRIVATE_KEY, EVM_BRIDGE_ADDRESS } = process.env;
+const { ARBITRUM_RPC_URL, EVM_PRIVATE_KEY, EVM_BRIDGE_ADDRESS } = process.env;
 
 if (!ARBITRUM_RPC_URL) throw new Error("ARBITRUM_RPC_URL not set in .env");
-if (!PRIVATE_KEY) throw new Error("PRIVATE_KEY not set in .env");
+if (!EVM_PRIVATE_KEY) throw new Error("EVM_PRIVATE_KEY not set in .env");
 if (!EVM_BRIDGE_ADDRESS) throw new Error("EVM_BRIDGE_ADDRESS not set in .env - deploy EVM bridge first");
 
 const main = async () => {
@@ -21,7 +21,7 @@ const main = async () => {
     }
 
     console.log(`Connecting to Arbitrum Sepolia...`);
-    const { account, publicClient, walletClient } = createEvmClients(ARBITRUM_RPC_URL!, PRIVATE_KEY!);
+    const { account, publicClient, walletClient } = createEvmClients(ARBITRUM_RPC_URL!, EVM_PRIVATE_KEY!);
     const bridgeAddress = getAddress(EVM_BRIDGE_ADDRESS!);
 
     console.log(`Using account: ${account.address}`);

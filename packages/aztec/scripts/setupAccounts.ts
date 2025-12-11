@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { loadRootEnv } from "./utils/env";
+import { loadRootEnv, updateRootEnv } from "./utils/env";
 loadRootEnv();
 import { writeFileSync } from "fs";
 import { AccountData, TESTNET_PXE_CONFIG, testnetSendWaitOpts } from "./utils/aztec";
@@ -22,7 +22,7 @@ const main = async () => {
     console.log("Creating new accounts...");
     const wallet = await TestWallet.create(node, TESTNET_PXE_CONFIG)
     const accountData: AccountData[] = [];
-    const numAccounts = 3;
+    const numAccounts = 4;
 
     for (let i = 0; i < numAccounts; i++) {
         const secretKey = Fr.random();
@@ -39,6 +39,12 @@ const main = async () => {
             address: manager.address.toString(),
         });
     }
+
+    // Set the 4th account as the relayer account in .env
+    updateRootEnv({
+        "AZTEC_RELAYER_PRIVATE_KEY": accountData[3].secretKey,
+        "AZTEC_RELAYER_SALT": accountData[3].salt,
+    });
 
     // Save accounts to file
     writeFileSync(accountFilePath, JSON.stringify(accountData, null, 2));

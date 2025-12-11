@@ -13,14 +13,14 @@ const __dirname = dirname(__filename);
 const EVM_DIR = join(__dirname, "../../evm");
 
 const {
-    PRIVATE_KEY,
+    EVM_PRIVATE_KEY,
     ARBITRUM_RPC_URL,
     EVM_WORMHOLE_ADDRESS,
     EVM_CHAIN_ID,
     EVM_FINALITY
 } = process.env;
 
-if (!PRIVATE_KEY) throw new Error("PRIVATE_KEY not set in .env");
+if (!EVM_PRIVATE_KEY) throw new Error("EVM_PRIVATE_KEY not set in .env");
 if (!ARBITRUM_RPC_URL) throw new Error("ARBITRUM_RPC_URL not set in .env");
 if (!EVM_WORMHOLE_ADDRESS) throw new Error("EVM_WORMHOLE_ADDRESS not set in .env");
 if (!EVM_CHAIN_ID) throw new Error("EVM_CHAIN_ID not set in .env");
@@ -38,7 +38,7 @@ async function main() {
         `forge script script/DeployMessageBridge.s.sol:DeployMessageBridge \
             --rpc-url ${ARBITRUM_RPC_URL} \
             --broadcast \
-            --private-key ${PRIVATE_KEY}`,
+            --private-key ${EVM_PRIVATE_KEY}`,
         {
             cwd: EVM_DIR,
             stdio: "inherit",

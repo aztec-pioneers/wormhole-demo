@@ -74,7 +74,7 @@ func (p *DefaultVAAProcessor) ProcessVAA(ctx context.Context, vaaData VAAData) (
 
 	// Check if this is a VAA from Aztec (source chain) -> send to Arbitrum
 	if vaaData.ChainID == p.config.ChainID {
-		p.submitter.SubmitVAA(ctx, vaaData.RawBytes)
+		txHash, err = p.submitter.SubmitVAA(ctx, vaaData.RawBytes)
 	} else {
 		// Skip VAAs not from our configured chains
 		p.logger.Debug("Skipping VAA (not from configured chains)",

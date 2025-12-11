@@ -8,6 +8,8 @@
     "build:aztec": "pnpm --filter @wormhole-demo/aztec build",
     "build:evm": "pnpm --filter @wormhole-demo/evm build",
     "build:relayer": "cd packages/relayer && go build -o bin/wormhole-relayer .",
+    "build:vaa-service": "docker build -f packages/aztec/ts/vaaService/Dockerfile -t wormhole-vaa-service .",
+    "vaa-service": "docker run --rm -p 3000:3000 --env-file packages/aztec/.env wormhole-vaa-service",
     "deploy:evm": "pnpm --filter @wormhole-demo/aztec deploy:evm",
     "deploy:aztec": "pnpm --filter @wormhole-demo/aztec setup:deploy",
     "configure": "pnpm --filter @wormhole-demo/aztec setup:configure",

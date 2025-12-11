@@ -93,31 +93,45 @@ func (c *EVMClient) SendVerifyTransaction(ctx context.Context, targetContract st
 		return "", fmt.Errorf("failed to get nonce: %v", err)
 	}
 
-	// Get the current gas price
-	gasPrice, err := c.client.SuggestGasPrice(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to get gas price: %v", err)
-	}
-
-	// Create the transaction
-	targetAddr := common.HexToAddress(targetContract)
-	tx := types.NewTransaction(
-		nonce,
-		targetAddr,
-		big.NewInt(0), // No ETH being sent
-		3000000,       // Gas limit - adjust as needed
-		gasPrice,
-		data,
-	)
-
 	// Get the chain ID
 	chainID, err := c.client.NetworkID(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to get chain ID: %v", err)
 	}
 
-	// Sign the transaction
-	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), c.privateKey)
+	// Get the current base fee from the latest block header
+	header, err := c.client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get latest block header: %v", err)
+	}
+
+	// Calculate gas fees with buffer for EIP-1559
+	// Use 2x base fee as max fee to handle fluctuations
+	baseFee := header.BaseFee
+	maxPriorityFeePerGas := big.NewInt(100000000) // 0.1 gwei tip
+	maxFeePerGas := new(big.Int).Mul(baseFee, big.NewInt(2))
+	maxFeePerGas.Add(maxFeePerGas, maxPriorityFeePerGas)
+
+	c.logger.Debug("Gas fees calculated",
+		zap.String("baseFee", baseFee.String()),
+		zap.String("maxFeePerGas", maxFeePerGas.String()),
+		zap.String("maxPriorityFeePerGas", maxPriorityFeePerGas.String()))
+
+	// Create EIP-1559 dynamic fee transaction
+	targetAddr := common.HexToAddress(targetContract)
+	tx := types.NewTx(&types.DynamicFeeTx{
+		ChainID:   chainID,
+		Nonce:     nonce,
+		GasTipCap: maxPriorityFeePerGas,
+		GasFeeCap: maxFeePerGas,
+		Gas:       3000000, // Gas limit
+		To:        &targetAddr,
+		Value:     big.NewInt(0),
+		Data:      data,
+	})
+
+	// Sign the transaction with London signer for EIP-1559 transactions
+	signedTx, err := types.SignTx(tx, types.NewLondonSigner(chainID), c.privateKey)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign transaction: %v", err)
 	}

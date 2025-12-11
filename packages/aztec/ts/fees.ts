@@ -1,5 +1,6 @@
 import { AztecAddress } from '@aztec/aztec.js/addresses';
 import {
+    ContractInstanceWithAddress,
     getContractInstanceFromInstantiationParams,
     type InteractionFeeOptions
 } from "@aztec/aztec.js/contracts";
@@ -17,20 +18,20 @@ import type { TestWallet } from '@aztec/test-wallet/server';
 import { precision } from './utils';
 
 export async function getSponsoredPaymentMethod(wallet: BaseWallet) {
-    const instance = await getContractInstanceFromInstantiationParams(
-        SponsoredFPCContractArtifact,
-        { salt: new Fr(0) },
-    );
+    const instance = await getSponsoredFPCInstance();
     await wallet.registerContract(instance, SponsoredFPCContractArtifact);
     return new SponsoredFeePaymentMethod(instance.address)
 }
 
-export async function getSponsoredFPCAddress(): Promise<AztecAddress> {
-    const instance = await getContractInstanceFromInstantiationParams(
+export async function getSponsoredFPCInstance(): Promise<ContractInstanceWithAddress> {
+    return await getContractInstanceFromInstantiationParams(
         SponsoredFPCContractArtifact,
         { salt: new Fr(0) },
     );
-    return instance.address;
+}
+
+export async function getSponsoredFPCAddress(): Promise<AztecAddress> {
+    return await getSponsoredFPCInstance().then(instance => instance.address);
 }
 
 export async function getFeeJuicePortalManager(

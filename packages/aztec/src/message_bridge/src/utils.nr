@@ -6,12 +6,28 @@ pub global PAYLOAD_ID_MESSAGE: u8 = 99;
 
 /// Encode message payload into Wormhole message format
 ///
-/// Payload format (38 bytes):
-/// - Byte 0:      Payload ID (99)
-/// - Bytes 1-32:  Sender address (32 bytes)
-/// - Byte 33:     Value (1 byte, 1-256 where 0 = 256)
-/// - Bytes 34-35: Source chain ID (2 bytes, big-endian)
-/// - Bytes 36-37: Destination chain ID (2 bytes, big-endian)
+/// The Wormhole contract converts each 31-byte chunk to a Field using from_le_bytes(),
+/// which reverses the byte order. When guardians serialize the Field back to 32 bytes
+/// (big-endian), the bytes appear reversed.
+///
+/// To ensure the value ends up at a predictable location in the final EVM payload,
+/// we place it at position 0 of a chunk. After little-endian reversal and 32-byte
+/// Field serialization, it will appear at the last position (byte 31) of that Field.
+///
+/// Payload structure (248 bytes = 8 chunks of 31 bytes):
+/// - Chunk 0 (bytes 0-30):   [value, srcChainHi, srcChainLo, dstChainHi, dstChainLo, payloadId, zeros...]
+/// - Chunk 1 (bytes 31-61):  [sender bytes 0-30]
+/// - Chunk 2 (bytes 62-92):  [sender byte 31, zeros...]
+/// - Chunks 3-7: zeros
+///
+/// After guardian serialization (5 header Fields + 8 payload Fields = 13 Fields x 32 bytes):
+/// The EVM receives a payload where:
+/// - Bytes 0-159: Header (sender, sequence, nonce, consistency, timestamp)
+/// - Bytes 160-191: Field 5 = reversed chunk 0
+/// - Bytes 192-223: Field 6 = reversed chunk 1
+/// etc.
+///
+/// Value will be at: 160 (header) + 31 (last byte of reversed chunk 0) = byte 191
 ///
 /// Returns [[u8; 31]; 8] for Wormhole publish_message (248 bytes total)
 pub fn encode_message_payload(
@@ -20,40 +36,24 @@ pub fn encode_message_payload(
     source_chain_id: u16,
     destination_chain_id: u16,
 ) -> [[u8; 31]; 8] {
-    // Create the 38-byte payload
-    let mut payload: [u8; 38] = [0; 38];
-
-    // Byte 0: payload ID
-    payload[0] = PAYLOAD_ID_MESSAGE;
-
-    // Bytes 1-32: sender address (32 bytes)
-    for i in 0..32 {
-        payload[1 + i] = sender[i];
-    }
-
-    // Byte 33: value
-    payload[33] = value;
-
-    // Bytes 34-35: source chain ID (2 bytes, big-endian)
-    payload[34] = (source_chain_id >> 8) as u8;
-    payload[35] = source_chain_id as u8;
-
-    // Bytes 36-37: destination chain ID (2 bytes, big-endian)
-    payload[36] = (destination_chain_id >> 8) as u8;
-    payload[37] = destination_chain_id as u8;
-
-    // Pack into Wormhole format: [[u8; 31]; 8] = 248 bytes total
-    // Wormhole expects data in chunks of 31 bytes
     let mut wormhole_payload: [[u8; 31]; 8] = [[0; 31]; 8];
 
-    for slot in 0..8 {
-        for byte_idx in 0..31 {
-            let payload_idx = slot * 31 + byte_idx;
-            if payload_idx < 38 {
-                wormhole_payload[slot][byte_idx] = payload[payload_idx];
-            }
-        }
+    // Chunk 0: Control data
+    // Place value at byte 0 - after LE reversal, it will be at the end of the Field
+    wormhole_payload[0][0] = value;
+    wormhole_payload[0][1] = (source_chain_id >> 8) as u8;
+    wormhole_payload[0][2] = source_chain_id as u8;
+    wormhole_payload[0][3] = (destination_chain_id >> 8) as u8;
+    wormhole_payload[0][4] = destination_chain_id as u8;
+    wormhole_payload[0][5] = PAYLOAD_ID_MESSAGE;
+
+    // Chunk 1: First 31 bytes of sender
+    for i in 0..31 {
+        wormhole_payload[1][i] = sender[i];
     }
+
+    // Chunk 2: Last byte of sender
+    wormhole_payload[2][0] = sender[31];
 
     wormhole_payload
 }
