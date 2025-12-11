@@ -8,7 +8,7 @@ import { createStore } from "@aztec/kv-store/lmdb"
 import { TestWallet } from '@aztec/test-wallet/server';
 import ProxyLogger from './utils.js';
 import { getSponsoredPaymentMethod, getPriorityFeeOptions } from '@aztec-wormhole-demo/aztec-contracts/fees';
-import { WormholeContract, WormholeContractArtifact } from '@aztec-wormhole-demo/aztec-contracts/artifacts';
+import { MessageBridgeContract, MessageBridgeContractArtifact, WormholeContract, WormholeContractArtifact } from '@aztec-wormhole-demo/aztec-contracts/artifacts';
 import { VAAVerificationResult } from './types.js';
 
 // DEVNET CONFIGURATION
@@ -17,6 +17,7 @@ const ROLLUP_VERSION = process.env.ROLLUP_VERSION;
 const AZTEC_RELAYER_PRIVATE_KEY = process.env.AZTEC_RELAYER_PRIVATE_KEY;
 const AZTEC_RELAYER_SALT = process.env.AZTEC_RELAYER_SALT;
 const AZTEC_WORMHOLE_ADDRESS = process.env.AZTEC_WORMHOLE_ADDRESS;
+const AZTEC_BRIDGE_ADDRESS = process.env.AZTEC_BRIDGE_ADDRESS;
 
 // Initialize Aztec Wormhole VAA Service
 export default class WormholeVaaService {
@@ -26,6 +27,7 @@ export default class WormholeVaaService {
         private wallet: TestWallet,
         private relayerAddress: AztecAddress,
         private wormholeContract: WormholeContract,
+        private messageBridgeContract: MessageBridgeContract,
         private paymentMethod: SponsoredFeePaymentMethod
     ) {
         console.log(`✅ Aztec Wormhole VAA Relayer Service Setup Successfully on Devnet`);
@@ -38,6 +40,7 @@ export default class WormholeVaaService {
         if (!AZTEC_RELAYER_PRIVATE_KEY) throw new Error('AZTEC_RELAYER_PRIVATE_KEY not set in .env');
         if (!AZTEC_RELAYER_SALT) throw new Error('AZTEC_RELAYER_SALT not set in .env');
         if (!AZTEC_WORMHOLE_ADDRESS) throw new Error('AZTEC_WORMHOLE_ADDRESS not set in .env');
+        if (!AZTEC_BRIDGE_ADDRESS) throw new Error('AZTEC_BRIDGE_ADDRESS not set in .env');
 
         // 2. Initialize Aztec Node and Wallet
         const node = createAztecNodeClient(AZTEC_NODE_URL);
@@ -73,11 +76,21 @@ export default class WormholeVaaService {
         await wallet.registerContract(wormholeInstance, WormholeContractArtifact);
         const wormholeContract = await WormholeContract.at(wormholeAddress, wallet);
         console.log('🛠️ Wormhole contract registered');
+
+        // 5. ensure message bridge contract is registered
+        const messageBridgeAddress = AztecAddress.fromString(AZTEC_BRIDGE_ADDRESS);
+        const messageBridgeInstance = await node.getContract(messageBridgeAddress);
+        if (!messageBridgeInstance)
+            throw new Error(`Message Bridge contract not found at address ${AZTEC_BRIDGE_ADDRESS}`);
+        await wallet.registerContract(messageBridgeInstance, MessageBridgeContractArtifact);
+        const messageBridgeContract = await MessageBridgeContract.at(messageBridgeAddress, wallet);
+        console.log('🛠️ Message Bridge contract registered');
         return new WormholeVaaService(
             node,
             wallet,
             relayerAddress,
             wormholeContract,
+            messageBridgeContract,
             paymentMethod
         );
     }
@@ -111,7 +124,7 @@ export default class WormholeVaaService {
         log(`padded length=${vaaArray.length}, actualLength=${actualLength}`);
 
         // 5. Call verify_vaa on the Wormhole contract and wait for tx
-        const tx = await this.wormholeContract.methods.verify_vaa(vaaArray, actualLength)
+        const tx = await this.messageBridgeContract.methods.receive_value(vaaArray, actualLength)
             .send({
                 from: this.relayerAddress,
                 fee: {

@@ -90,33 +90,21 @@ export class MessageBridgeContract extends ContractBase {
   }
   
 
-  public static get storage(): ContractStorageLayout<'config' | 'owner' | 'registered_emitters' | 'processed_vaas' | 'message_fee' | 'last_received_value' | 'last_received_from_chain' | 'last_received_sender'> {
+  public static get storage(): ContractStorageLayout<'config' | 'owner' | 'registered_emitters' | 'current_value'> {
       return {
         config: {
       slot: new Fr(1n),
     },
 owner: {
-      slot: new Fr(4n),
-    },
-registered_emitters: {
       slot: new Fr(5n),
     },
-processed_vaas: {
+registered_emitters: {
       slot: new Fr(6n),
     },
-message_fee: {
+current_value: {
       slot: new Fr(7n),
-    },
-last_received_value: {
-      slot: new Fr(8n),
-    },
-last_received_from_chain: {
-      slot: new Fr(9n),
-    },
-last_received_sender: {
-      slot: new Fr(10n),
     }
-      } as ContractStorageLayout<'config' | 'owner' | 'registered_emitters' | 'processed_vaas' | 'message_fee' | 'last_received_value' | 'last_received_from_chain' | 'last_received_sender'>;
+      } as ContractStorageLayout<'config' | 'owner' | 'registered_emitters' | 'current_value'>;
     }
     
 
@@ -129,26 +117,14 @@ last_received_sender: {
     /** get_config() */
     get_config: (() => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
-    /** get_last_from_chain() */
-    get_last_from_chain: (() => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
-
-    /** get_last_sender() */
-    get_last_sender: (() => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
-
-    /** get_last_value() */
-    get_last_value: (() => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
-
-    /** get_message_fee() */
-    get_message_fee: (() => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
+    /** get_current_value() */
+    get_current_value: (() => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
     /** get_owner() */
     get_owner: (() => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
-    /** get_registered_emitter(chain_id: integer) */
-    get_registered_emitter: ((chain_id: (bigint | number)) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
-
-    /** is_vaa_processed(source_chain_id: integer, sender: field, value: field) */
-    is_vaa_processed: ((source_chain_id: (bigint | number), sender: FieldLike, value: FieldLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
+    /** is_emitter_registered(chain_id: integer, emitter_address: array) */
+    is_emitter_registered: ((chain_id: (bigint | number), emitter_address: (bigint | number)[]) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
     /** process_message(message_ciphertext: struct, message_context: struct) */
     process_message: ((message_ciphertext: FieldLike[], message_context: { tx_hash: FieldLike, unique_note_hashes_in_tx: FieldLike[], first_nullifier_in_tx: FieldLike, recipient: AztecAddressLike }) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
@@ -156,23 +132,20 @@ last_received_sender: {
     /** public_dispatch(selector: field) */
     public_dispatch: ((selector: FieldLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
-    /** receive_value(source_chain_id: integer, sender: field, value: integer) */
-    receive_value: ((source_chain_id: (bigint | number), sender: FieldLike, value: (bigint | number)) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
+    /** receive_value(vaa: array, length: integer) */
+    receive_value: ((vaa: (bigint | number)[], length: (bigint | number)) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
-    /** register_emitter(chain_id: integer, emitter_address: array) */
-    register_emitter: ((chain_id: (bigint | number), emitter_address: (bigint | number)[]) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
+    /** register_emitter(source_chain_id: integer, emitter_address: array) */
+    register_emitter: ((source_chain_id: (bigint | number), emitter_address: (bigint | number)[]) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
-    /** send_value(destination_chain_id: integer, value: integer, fee_nonce: field) */
-    send_value: ((destination_chain_id: (bigint | number), value: (bigint | number), fee_nonce: FieldLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
+    /** send_value_private(destination_chain_id: integer, value: integer, fee_nonce: field) */
+    send_value_private: ((destination_chain_id: (bigint | number), value: (bigint | number), fee_nonce: FieldLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
-    /** set_message_fee(fee: integer) */
-    set_message_fee: ((fee: (bigint | number)) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
+    /** send_value_public(destination_chain_id: integer, value: integer, fee_nonce: field) */
+    send_value_public: ((destination_chain_id: (bigint | number), value: (bigint | number), fee_nonce: FieldLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
     /** sync_private_state() */
     sync_private_state: (() => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
-
-    /** transfer_ownership(new_owner: struct) */
-    transfer_ownership: ((new_owner: AztecAddressLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
   };
 
   
