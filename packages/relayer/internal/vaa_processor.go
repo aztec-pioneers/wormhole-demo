@@ -68,21 +68,16 @@ func (p *DefaultVAAProcessor) ProcessVAA(ctx context.Context, vaaData VAAData) (
 		parseAndLogPayload(p.logger, vaaData.VAA.Payload)
 	}
 
-	var txHash string
-	var err error
-	var direction string
-
-	// Check if this is a VAA from Aztec (source chain) -> send to Arbitrum
-	if vaaData.ChainID == p.config.ChainID {
-		txHash, err = p.submitter.SubmitVAA(ctx, vaaData.RawBytes)
-	} else {
-		// Skip VAAs not from our configured chains
-		p.logger.Debug("Skipping VAA (not from configured chains)",
+	// Check if this is a VAA from our configured source chain
+	if vaaData.ChainID != p.config.ChainID {
+		// Skip VAAs not from our configured chain
+		p.logger.Debug("Skipping VAA (not from configured chain)",
 			zap.Uint64("sequence", vaaData.Sequence),
 			zap.Uint16("chain", vaaData.ChainID))
 		return "", nil
 	}
 
+	txHash, err := p.submitter.SubmitVAA(ctx, vaaData.RawBytes)
 	if err != nil {
 		// Check if the context was cancelled or timed out
 		if ctx.Err() != nil {
@@ -91,7 +86,6 @@ func (p *DefaultVAAProcessor) ProcessVAA(ctx context.Context, vaaData VAAData) (
 		}
 
 		p.logger.Error("Failed to send verify transaction",
-			zap.String("direction", direction),
 			zap.Uint64("sequence", vaaData.Sequence),
 			zap.String("sourceTxID", vaaData.TxID),
 			zap.Error(err))
@@ -99,10 +93,9 @@ func (p *DefaultVAAProcessor) ProcessVAA(ctx context.Context, vaaData VAAData) (
 	}
 
 	p.logger.Info("VAA verification completed",
-		zap.String("direction", direction),
 		zap.Uint64("sequence", vaaData.Sequence),
 		zap.String("txHash", txHash),
 		zap.String("sourceTxID", vaaData.TxID))
 
-	return "", nil
+	return txHash, nil
 }

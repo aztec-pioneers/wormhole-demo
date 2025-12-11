@@ -14,18 +14,20 @@ WORKDIR /app
 # Copy root package files for workspace setup
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Copy the aztec-contracts package (dependency)
+# Copy all workspace package.json files (pnpm needs all packages present)
 COPY packages/aztec/package.json packages/aztec/
+COPY packages/aztec-vaa-service/package.json packages/aztec-vaa-service/
+COPY packages/evm/package.json packages/evm/
+COPY packages/relayer/package.json packages/relayer/
+
+# Install dependencies (only for the packages we need)
+RUN pnpm install --frozen-lockfile --filter @aztec-wormhole-demo/aztec-vaa-service...
+
+# Copy the aztec-contracts package source (our dependency)
 COPY packages/aztec/ts/ packages/aztec/ts/
 
-# Copy the aztec-vaa-service package
-COPY packages/aztec-vaa-service/package.json packages/aztec-vaa-service/
-
-# Install dependencies
-RUN pnpm install --frozen-lockfile
-
-# Copy the rest of the aztec-vaa-service package source
-COPY packages/aztec-vaa-service/ packages/aztec-vaa-service/
+# Copy the aztec-vaa-service package source
+COPY packages/aztec-vaa-service/src/ packages/aztec-vaa-service/src/
 
 WORKDIR /app/packages/aztec-vaa-service
 

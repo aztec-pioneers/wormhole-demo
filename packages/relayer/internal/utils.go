@@ -1,10 +1,18 @@
 package internal
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 
 	"go.uber.org/zap"
 )
+
+// computeVAAKey computes a unique key for a VAA based on its bytes
+func computeVAAKey(vaaBytes []byte) string {
+	hash := sha256.Sum256(vaaBytes)
+	return hex.EncodeToString(hash[:])
+}
 
 // parseAndLogPayload parses and logs payload structure at debug level
 func parseAndLogPayload(logger *zap.Logger, payload []byte) {

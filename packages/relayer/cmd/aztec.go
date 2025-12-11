@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -18,11 +19,11 @@ import (
 
 const (
 	// Default configuration values
-	DefaultAztecPXEURL                 = "http://localhost:8090"
-	DefaultAztecWalletAddress          = "0x1f3933ca4d66e948ace5f8339e5da687993b76ee57bcf65e82596e0fc10a8859"
-	DefaultAztecTargetContract         = "0x0848d2af89dfd7c0e171238f9216399e61e908cd31b0222a920f1bf621a16ed6"
-	DefaultVerificationServiceURL      = "http://localhost:8080"
-	DefaultArbitrumChainIDForAztec     = uint16(10003) // Arbitrum Sepolia Wormhole chain ID (source for Aztec relay)
+	DefaultAztecPXEURL             = "http://localhost:8090"
+	DefaultAztecWalletAddress      = "0x1f3933ca4d66e948ace5f8339e5da687993b76ee57bcf65e82596e0fc10a8859"
+	DefaultAztecTargetContract     = "0x0848d2af89dfd7c0e171238f9216399e61e908cd31b0222a920f1bf621a16ed6"
+	DefaultVerificationServiceURL  = "http://localhost:8080"
+	DefaultArbitrumChainIDForAztec = uint16(10003) // Arbitrum Sepolia Wormhole chain ID (source for Aztec relay)
 )
 
 // aztecCmd represents the command to relay VAAs to Aztec
@@ -101,20 +102,38 @@ func runAztecRelay(cmd *cobra.Command, args []string) error {
 		zap.Uint16("chainId", config.ChainID),
 		zap.String("aztecPXE", config.AztecPXEURL),
 		zap.String("aztecWallet", config.AztecWalletAddress),
-		zap.String("aztecTarget", config.AztecTargetContract))
+		zap.String("aztecTarget", config.AztecTargetContract),
+		zap.String("verificationService", config.VerificationServiceURL))
 
 	spyClient, err := clients.NewSpyClient(logger, config.SpyRPCHost)
 	if err != nil {
 		return fmt.Errorf("failed to create spy client: %v", err)
 	}
 
-	pxeClient, err := clients.NewAztecPXEClient(
+	// Check verification service health first
+	verificationService := clients.NewVerificationServiceClient(logger, config.VerificationServiceURL)
+	healthCtx, healthCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	verificationHealthy := false
+	if err := verificationService.CheckHealth(healthCtx); err != nil {
+		logger.Warn("Verification service not available", zap.Error(err))
+	} else {
+		logger.Info("Connected to verification service", zap.String("url", config.VerificationServiceURL))
+		verificationHealthy = true
+	}
+	healthCancel()
+
+	// PXE client is optional if verification service is healthy, required otherwise
+	var pxeClient *clients.AztecPXEClient
+	pxeClient, err = clients.NewAztecPXEClient(
 		logger, config.AztecPXEURL, config.AztecWalletAddress)
 	if err != nil {
-		return fmt.Errorf("failed to create PXE client: %v", err)
+		if verificationHealthy {
+			logger.Warn("PXE client not available, using verification service only", zap.Error(err))
+			pxeClient = nil
+		} else {
+			return fmt.Errorf("failed to create PXE client and verification service is not healthy: %v", err)
+		}
 	}
-
-	verificationService := clients.NewVerificationServiceClient(logger, config.VerificationServiceURL)
 
 	submitter := submitter.NewAztecSubmitter(logger,
 		config.AztecTargetContract, pxeClient, verificationService)

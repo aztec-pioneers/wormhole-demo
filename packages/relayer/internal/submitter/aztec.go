@@ -27,7 +27,7 @@ func NewAztecSubmitter(logger *zap.Logger, targetContract string, pxeClient *cli
 
 func (s *AztecSubmitter) SubmitVAA(ctx context.Context, vaaBytes []byte) (string, error) {
 	// Create a context with timeout for submission operations
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second) // Increased timeout for HTTP calls
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	s.logger.Info("Submitting VAA to Aztec",
@@ -37,16 +37,16 @@ func (s *AztecSubmitter) SubmitVAA(ctx context.Context, vaaBytes []byte) (string
 	var txHash string
 	var err error
 
-	// MODIFY: Try verification service first, fallback to direct PXE
-	if s.verificationClient != nil {
-		s.logger.Debug("Trying verification service to submit VAA")
-		txHash, err = s.verificationClient.VerifyVAA(ctx, vaaBytes)
-	}
+	// Try verification service first, fallback to direct PXE if available
+	txHash, err = s.verificationClient.VerifyVAA(ctx, vaaBytes)
 	if err != nil {
-		s.logger.Warn("Verification service failed, trying direct PXE", zap.Error(err))
-		// Fallback to direct PXE call
-		err = nil
-		txHash, err = s.pxeClient.SendVerifyTransaction(ctx, s.targetContract, vaaBytes)
+		if s.pxeClient != nil {
+			s.logger.Warn("Verification service failed, trying direct PXE", zap.Error(err))
+			// Fallback to direct PXE call
+			txHash, err = s.pxeClient.SendVerifyTransaction(ctx, s.targetContract, vaaBytes)
+		} else {
+			s.logger.Error("Verification service failed and no PXE fallback available", zap.Error(err))
+		}
 	} else {
 		s.logger.Debug("Used verification service successfully")
 	}

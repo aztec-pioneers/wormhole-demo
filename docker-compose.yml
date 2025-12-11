@@ -3,7 +3,7 @@ services:
   vaa-service:
     build:
       context: .
-      dockerfile: packages/aztec/ts/vaaService/Dockerfile
+      dockerfile: packages/aztec-vaa-service/Dockerfile
     ports:
       - "3000:3000"
     environment:
@@ -81,7 +81,7 @@ services:
       # Source chain (EVM - Arbitrum Sepolia)
       - WORMHOLE_RELAYER_CHAIN_ID=${WORMHOLE_CHAIN_ID:-10003}
       # VAA verification service
-      - WORMHOLE_RELAYER_VERIFICATION_SERVICE_URL=http://vaa-service:3000/verify
+      - WORMHOLE_RELAYER_VERIFICATION_SERVICE_URL=http://vaa-service:3000
     depends_on:
       wormhole-spy:
         condition: service_started
