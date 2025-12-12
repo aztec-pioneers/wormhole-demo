@@ -88,7 +88,11 @@ pnpm send:aztec 200
 pnpm send:aztec 10293 --private
 
 # Publicly set the value on arbitrum sepolia to 7777777
+# NOTE: THIS IS BROKEN DUE TO A BUG IN AZTEC WORMHOLE IMPLEMENTATION
+# https://github.com/NethermindEth/wormhole/pull/58 fix needed before this can be supported
+# technically --private send is broken, but this repo is set up for private to work for now
 pnpm send:aztec 7777777 --public
+
 ```
 
 ### 9. Update the value on Aztec using the EVM chain bridge
