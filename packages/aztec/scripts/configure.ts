@@ -35,12 +35,27 @@ async function configureEvmBridge() {
     console.log(`EVM Bridge: ${EVM_BRIDGE_ADDRESS}`);
     console.log(`Aztec Chain ID: ${AZTEC_WORMHOLE_CHAIN_ID}`);
     console.log(`Aztec Wormhole (emitter): ${AZTEC_WORMHOLE_ADDRESS}`);
-    console.log(`Aztec Bridge (sender): ${AZTEC_BRIDGE_ADDRESS}`);
 
     const { account, publicClient, walletClient } = createEvmClients(ARBITRUM_RPC_URL!, EVM_PRIVATE_KEY!);
     const evmBridgeAddress = getAddress(EVM_BRIDGE_ADDRESS!);
 
-    // Check ownership first
+    // Register the Aztec Wormhole contract as the emitter (not the bridge)
+    const aztecEmitterBytes32 = addressToBytes32(AZTEC_WORMHOLE_ADDRESS!);
+
+    // Check if already registered (nested mapping: chainId => emitterAddress => bool)
+    const isRegistered = await publicClient.readContract({
+        address: evmBridgeAddress,
+        abi: MESSAGE_BRIDGE_ABI,
+        functionName: "registeredEmitters",
+        args: [AZTEC_WORMHOLE_CHAIN_ID, aztecEmitterBytes32],
+    }) as boolean;
+
+    if (isRegistered) {
+        console.log("Aztec emitter already registered on EVM bridge");
+        return;
+    }
+
+    // Check ownership
     const owner = await publicClient.readContract({
         address: evmBridgeAddress,
         abi: MESSAGE_BRIDGE_ABI,
@@ -51,54 +66,18 @@ async function configureEvmBridge() {
         throw new Error(`Not owner of EVM bridge. Owner: ${owner}, You: ${account.address}`);
     }
 
-    // Register the Aztec Wormhole contract as the emitter
-    const aztecEmitterBytes32 = addressToBytes32(AZTEC_WORMHOLE_ADDRESS!);
-    const isEmitterRegistered = await publicClient.readContract({
+    // Register the Aztec emitter
+    console.log("Registering Aztec emitter on EVM bridge...");
+    const hash = await walletClient.writeContract({
         address: evmBridgeAddress,
         abi: MESSAGE_BRIDGE_ABI,
-        functionName: "registeredEmitters",
+        functionName: "registerEmitter",
         args: [AZTEC_WORMHOLE_CHAIN_ID, aztecEmitterBytes32],
-    }) as boolean;
+    });
 
-    if (isEmitterRegistered) {
-        console.log("Aztec emitter already registered on EVM bridge");
-    } else {
-        console.log("Registering Aztec emitter on EVM bridge...");
-        const hash = await walletClient.writeContract({
-            address: evmBridgeAddress,
-            abi: MESSAGE_BRIDGE_ABI,
-            functionName: "registerEmitter",
-            args: [AZTEC_WORMHOLE_CHAIN_ID, aztecEmitterBytes32],
-        });
-        console.log(`Transaction submitted: ${hash}`);
-        const receipt = await publicClient.waitForTransactionReceipt({ hash });
-        console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
-    }
-
-    // Register the Aztec Bridge contract as the trusted sender
-    const aztecSenderBytes32 = addressToBytes32(AZTEC_BRIDGE_ADDRESS!);
-    const isSenderRegistered = await publicClient.readContract({
-        address: evmBridgeAddress,
-        abi: MESSAGE_BRIDGE_ABI,
-        functionName: "registeredSenders",
-        args: [AZTEC_WORMHOLE_CHAIN_ID, aztecSenderBytes32],
-    }) as boolean;
-
-    if (isSenderRegistered) {
-        console.log("Aztec sender already registered on EVM bridge");
-    } else {
-        console.log("Registering Aztec sender on EVM bridge...");
-        const hash = await walletClient.writeContract({
-            address: evmBridgeAddress,
-            abi: MESSAGE_BRIDGE_ABI,
-            functionName: "registerSender",
-            args: [AZTEC_WORMHOLE_CHAIN_ID, aztecSenderBytes32],
-        });
-        console.log(`Transaction submitted: ${hash}`);
-        const receipt = await publicClient.waitForTransactionReceipt({ hash });
-        console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
-    }
-
+    console.log(`Transaction submitted: ${hash}`);
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
     console.log("EVM bridge configured successfully!");
 }
 

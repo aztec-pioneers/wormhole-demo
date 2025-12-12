@@ -113,6 +113,7 @@ export default class WormholeVaaService {
         const hexString = vaaHex.startsWith('0x') ? vaaHex.slice(2) : vaaHex;
         const vaaBuffer = Buffer.from(hexString, 'hex');
         log(`raw hex length=${hexString.length}, buffer length=${vaaBuffer.length}`);
+        log(`VAA hex: ${hexString}`);
         log(`first 20 bytes: ${vaaBuffer.subarray(0, 20).toString('hex')}`);
         log(`last 20 bytes: ${vaaBuffer.subarray(vaaBuffer.length - 20).toString('hex')}`);
 

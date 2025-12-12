@@ -51,9 +51,6 @@ contract MessageBridge is Ownable {
     // Registered emitters: remoteChainId => emitterAddress => bool
     mapping(uint16 => mapping(bytes32 => bool)) public registeredEmitters;
 
-    // Registered senders: remoteChainId => senderAddress => bool
-    mapping(uint16 => mapping(bytes32 => bool)) public registeredSenders;
-
     // Processed messages for replay protection: txId => value
     // Non-zero value means processed
     mapping(bytes32 => bool) public nullifiers;
@@ -69,7 +66,6 @@ contract MessageBridge is Ownable {
     // ============================================================================
 
     event EmitterRegistered(uint16 indexed chainId, bytes32 emitterAddress);
-    event SenderRegistered(uint16 indexed chainId, bytes32 senderAddress);
     event ValueReceived(
         uint16 indexed sourceChainId,
         bytes32 indexed sender,
@@ -130,17 +126,6 @@ contract MessageBridge is Ownable {
         require(emitterAddress != bytes32(0), "Emitter cannot be zero");
         registeredEmitters[remoteChainId][emitterAddress] = true;
         emit EmitterRegistered(remoteChainId, emitterAddress);
-    }
-
-    /**
-     * @notice Register a trusted sender from a remote chain
-     * @param remoteChainId Wormhole chain ID of the remote chain (e.g., 56 for Aztec)
-     * @param senderAddress Sender address as bytes32 (the Aztec MessageBridge contract)
-     */
-    function registerSender(uint16 remoteChainId, bytes32 senderAddress) external onlyOwner {
-        require(senderAddress != bytes32(0), "Sender cannot be zero");
-        registeredSenders[remoteChainId][senderAddress] = true;
-        emit SenderRegistered(remoteChainId, senderAddress);
     }
 
     // ============================================================================
@@ -257,12 +242,6 @@ contract MessageBridge is Ownable {
             // sender starts at byte 37 = ptr + 37
             sender := mload(add(ptr, 37))
         }
-
-        // Verify sender is registered for this source chain
-        require(
-            registeredSenders[sourceChainId][sender],
-            "Invalid sender: not registered"
-        );
 
         // Value is at byte 74 (after txId + messageId + chains + sender + padding)
         uint8 value = uint8(payload[74]);
