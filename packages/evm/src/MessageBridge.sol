@@ -26,16 +26,16 @@ contract MessageBridge is Ownable {
     // ============================================================================
 
     // Wormhole contract
-    IWormhole public immutable wormhole;
+    IWormhole public immutable WORMHOLE;
 
     // Wormhole chain ID for this contract (10003 = Arbitrum Sepolia)
-    uint16 public immutable chainId;
+    uint16 public immutable CHAIN_ID;
 
     // Native EVM chain ID (421614 = Arbitrum Sepolia)
-    uint256 public immutable evmChainId;
+    uint256 public immutable EVM_CHAIN_ID;
 
     // Consistency level for outbound messages
-    uint8 public immutable finality;
+    uint8 public immutable FINALITY;
 
     // Registered emitters: remoteChainId => emitterAddress => bool
     mapping(uint16 => mapping(bytes32 => bool)) public registeredEmitters;
@@ -77,10 +77,10 @@ contract MessageBridge is Ownable {
         require(wormholeAddr != address(0), "Wormhole address cannot be zero");
         require(finality_ > 0, "Finality must be greater than zero");
 
-        wormhole = IWormhole(wormholeAddr);
-        chainId = chainId_;
-        evmChainId = evmChainId_;
-        finality = finality_;
+        WORMHOLE = IWormhole(wormholeAddr);
+        CHAIN_ID = chainId_;
+        EVM_CHAIN_ID = evmChainId_;
+        FINALITY = finality_;
         outboundNonce = 0;
     }
 
@@ -89,8 +89,12 @@ contract MessageBridge is Ownable {
     // ============================================================================
 
     modifier notFork() {
-        require(evmChainId == block.chainid, "Cannot operate on forked chain");
+        _notFork();
         _;
+    }
+
+    function _notFork() internal view {
+        require(EVM_CHAIN_ID == block.chainid, "Cannot operate on forked chain");
     }
 
     // ============================================================================
@@ -124,16 +128,16 @@ contract MessageBridge is Ownable {
     ) external payable notFork returns (uint64 sequence) {
         bytes memory payload = _encodePayload(value, destinationChainId);
 
-        uint256 messageFee = wormhole.messageFee();
+        uint256 messageFee = WORMHOLE.messageFee();
         require(
             msg.value >= messageFee,
             "Insufficient fee for Wormhole message"
         );
 
-        sequence = wormhole.publishMessage{value: messageFee}(
+        sequence = WORMHOLE.publishMessage{value: messageFee}(
             outboundNonce,
             payload,
-            finality
+            FINALITY
         );
 
         outboundNonce++;
@@ -167,7 +171,7 @@ contract MessageBridge is Ownable {
     function _verify(
         bytes memory encodedVm
     ) internal view returns (bytes memory) {
-        (IWormhole.VM memory vm, bool valid, string memory reason) = wormhole
+        (IWormhole.VM memory vm, bool valid, string memory reason) = WORMHOLE
             .parseAndVerifyVM(encodedVm);
 
         require(valid, reason);
