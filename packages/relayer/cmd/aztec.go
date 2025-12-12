@@ -95,7 +95,7 @@ func runAztecRelay(cmd *cobra.Command, args []string) error {
 	logger := configureLogging(cmd, args)
 	logger.Info("Starting Aztec relayer (EVM -> Aztec)")
 
-	// Get emitter address from flag (viper binding doesn't work reliably for subcommand flags)
+	// Get emitter address directly from flag (viper doesn't pick up command-line flags reliably)
 	emitterAddress, _ := cmd.Flags().GetString("emitter-address")
 
 	config := AztecConfig{

@@ -50,9 +50,43 @@ func (p *DefaultVAAProcessor) ProcessVAA(ctx context.Context, vaaData VAAData) (
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second) // Increased timeout for HTTP calls
 	defer cancel()
 
+	// Log VAAs from Aztec (54 or 56) or Arbitrum Sepolia (10003) at INFO level before filtering
+	if vaaData.ChainID == 54 || vaaData.ChainID == 56 || vaaData.ChainID == 10003 {
+		chainName := "Aztec"
+		if vaaData.ChainID == 10003 {
+			chainName = "Arbitrum Sepolia"
+		}
+		p.logger.Info("Received VAA from target chain",
+			zap.String("chain", chainName),
+			zap.Uint16("chainId", vaaData.ChainID),
+			zap.String("emitter", vaaData.EmitterHex),
+			zap.Uint64("sequence", vaaData.Sequence),
+			zap.String("sourceTxID", vaaData.TxID))
+	}
+
+	// Log essential VAA information at debug level
+	p.logger.Debug("VAA Details",
+		zap.Uint16("emitterChain", vaaData.ChainID),
+		zap.String("emitterAddress", vaaData.EmitterHex),
+		zap.Uint64("sequence", vaaData.Sequence),
+		zap.Time("timestamp", vaaData.VAA.Timestamp),
+		zap.Int("payloadLength", len(vaaData.VAA.Payload)),
+		zap.String("sourceTxID", vaaData.TxID))
+
+	// Extract and log key payload information at debug level
+	p.logger.Debug("VAA Payload", zap.String("payloadHex", fmt.Sprintf("%x", vaaData.VAA.Payload)))
+
+	// Parse payload structure at debug level
+	if len(vaaData.VAA.Payload) >= 32 {
+		parseAndLogPayload(p.logger, vaaData.VAA.Payload)
+	}
+
 	// Check if this is a VAA from our configured source chain
 	if vaaData.ChainID != p.config.ChainID {
-		// Skip VAAs not from our configured chain (don't log - too noisy)
+		// Skip VAAs not from our configured chain
+		p.logger.Debug("Skipping VAA (not from configured chain)",
+			zap.Uint64("sequence", vaaData.Sequence),
+			zap.Uint16("chain", vaaData.ChainID))
 		return "", nil
 	}
 
@@ -63,26 +97,6 @@ func (p *DefaultVAAProcessor) ProcessVAA(ctx context.Context, vaaData VAAData) (
 			zap.String("emitter", vaaData.EmitterHex),
 			zap.String("expectedEmitter", p.config.EmitterAddress))
 		return "", nil
-	}
-
-	// Log relevant VAA info after filtering
-	chainName := "Unknown"
-	if vaaData.ChainID == 56 {
-		chainName = "Aztec"
-	} else if vaaData.ChainID == 10003 {
-		chainName = "Arbitrum Sepolia"
-	}
-	p.logger.Info("Processing VAA from configured chain",
-		zap.String("chain", chainName),
-		zap.Uint16("chainId", vaaData.ChainID),
-		zap.String("emitter", vaaData.EmitterHex),
-		zap.Uint64("sequence", vaaData.Sequence),
-		zap.String("sourceTxID", vaaData.TxID))
-
-	// Log payload details at debug level
-	p.logger.Debug("VAA Payload", zap.String("payloadHex", fmt.Sprintf("%x", vaaData.VAA.Payload)))
-	if len(vaaData.VAA.Payload) >= 32 {
-		parseAndLogPayload(p.logger, vaaData.VAA.Payload)
 	}
 
 	txHash, err := p.submitter.SubmitVAA(ctx, vaaData.RawBytes)

@@ -17,7 +17,8 @@ const {
     ARBITRUM_RPC_URL,
     EVM_WORMHOLE_ADDRESS,
     EVM_CHAIN_ID,
-    EVM_FINALITY
+    EVM_FINALITY,
+    ETHERSCAN_API_KEY
 } = process.env;
 
 if (!EVM_PRIVATE_KEY) throw new Error("EVM_PRIVATE_KEY not set in .env");
@@ -25,6 +26,7 @@ if (!ARBITRUM_RPC_URL) throw new Error("ARBITRUM_RPC_URL not set in .env");
 if (!EVM_WORMHOLE_ADDRESS) throw new Error("EVM_WORMHOLE_ADDRESS not set in .env");
 if (!EVM_CHAIN_ID) throw new Error("EVM_CHAIN_ID not set in .env");
 if (!EVM_FINALITY) throw new Error("EVM_FINALITY not set in .env");
+if (!ETHERSCAN_API_KEY) console.warn("Warning: ETHERSCAN_API_KEY not set - contract verification will be skipped");
 
 async function main() {
     console.log("Deploying EVM MessageBridge contract...");
@@ -75,7 +77,34 @@ async function main() {
     const address = deployTx.contractAddress;
     console.log(`\nMessageBridge deployed at: ${address}`);
 
-    // 3. Update root .env
+    // 3. Verify contract on Arbiscan if API key is available
+    if (ETHERSCAN_API_KEY) {
+        console.log("\nVerifying contract on Arbiscan...");
+        try {
+            // Construct constructor args for verification
+            // Constructor: (address wormholeAddr, uint16 chainId_, uint256 evmChainId_, uint8 finality_)
+            execSync(
+                `forge verify-contract ${address} src/MessageBridge.sol:MessageBridge \
+                    --chain-id 421614 \
+                    --constructor-args $(cast abi-encode "constructor(address,uint16,uint256,uint8)" ${EVM_WORMHOLE_ADDRESS} ${EVM_CHAIN_ID} 421614 ${EVM_FINALITY}) \
+                    --etherscan-api-key ${ETHERSCAN_API_KEY} \
+                    --verifier-url "https://api.etherscan.io/v2/api?chainid=421614" \
+                    --watch`,
+                {
+                    cwd: EVM_DIR,
+                    stdio: "inherit",
+                    env: process.env
+                }
+            );
+            console.log("Contract verified successfully!");
+        } catch (err) {
+            console.error("Contract verification failed:", err);
+            console.log("You can manually verify later using:");
+            console.log(`  cd packages/evm && forge verify-contract ${address} src/MessageBridge.sol:MessageBridge --chain-id 421614 --etherscan-api-key <API_KEY> --verifier-url "https://api.etherscan.io/v2/api?chainid=421614"`);
+        }
+    }
+
+    // 4. Update root .env
     updateRootEnv({
         EVM_BRIDGE_ADDRESS: address,
     });

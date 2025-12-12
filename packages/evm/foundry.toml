@@ -18,6 +18,6 @@ arbitrum_sepolia = "https://sepolia-rollup.arbitrum.io/rpc"
 localhost = "http://localhost:8545"
 
 [etherscan]
-arbitrum_sepolia = { key = "${ARBISCAN_API_KEY}" }
+arbitrum_sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=421614" }
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

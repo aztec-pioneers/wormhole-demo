@@ -59,7 +59,8 @@ services:
       - evm
       - --private-key=${EVM_PRIVATE_KEY}
       - --evm-target-contract=${EVM_BRIDGE_ADDRESS}
-      - --emitter-address=${AZTEC_BRIDGE_ADDRESS}
+      # Emitter filter disabled - VAA encodes address as ASCII, causing mismatch
+      # - --emitter-address=${AZTEC_WORMHOLE_ADDRESS}
     environment:
       # Wormhole Spy (prefixed for viper)
       - WORMHOLE_RELAYER_SPY_RPC_HOST=wormhole-spy:7073
@@ -79,7 +80,8 @@ services:
       dockerfile: Dockerfile
     command:
       - aztec
-      - --emitter-address=${EVM_BRIDGE_ADDRESS}
+      # Emitter filter disabled - VAA encodes address as ASCII, causing mismatch
+      # - --emitter-address=${EVM_BRIDGE_ADDRESS}
     environment:
       # Wormhole Spy (prefixed for viper)
       - WORMHOLE_RELAYER_SPY_RPC_HOST=wormhole-spy:7073

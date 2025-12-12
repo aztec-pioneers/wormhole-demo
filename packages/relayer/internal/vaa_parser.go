@@ -98,7 +98,7 @@ func ParseVAAPermissive(data []byte) (*vaaLib.VAA, error) {
 
 // LogVAAFull logs all fields of a VAA for debugging
 func LogVAAFull(logger *zap.Logger, vaa *vaaLib.VAA, rawBytes []byte) {
-	logger.Debug("=== Full VAA Details ===",
+	logger.Info("=== Full VAA Details ===",
 		zap.Uint8("version", vaa.Version),
 		zap.Uint32("guardianSetIndex", vaa.GuardianSetIndex),
 		zap.Int("signatureCount", len(vaa.Signatures)),

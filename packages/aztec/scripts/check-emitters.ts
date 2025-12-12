@@ -18,6 +18,8 @@ const {
     EVM_PRIVATE_KEY,
     AZTEC_BRIDGE_ADDRESS,
     EVM_BRIDGE_ADDRESS,
+    AZTEC_WORMHOLE_ADDRESS,
+    EVM_WORMHOLE_ADDRESS,
 } = process.env;
 
 if (!AZTEC_NODE_URL) throw new Error("AZTEC_NODE_URL not set in .env");
@@ -25,6 +27,8 @@ if (!ARBITRUM_RPC_URL) throw new Error("ARBITRUM_RPC_URL not set in .env");
 if (!EVM_PRIVATE_KEY) throw new Error("EVM_PRIVATE_KEY not set in .env");
 if (!AZTEC_BRIDGE_ADDRESS) throw new Error("AZTEC_BRIDGE_ADDRESS not set in .env - deploy Aztec bridge first");
 if (!EVM_BRIDGE_ADDRESS) throw new Error("EVM_BRIDGE_ADDRESS not set in .env - deploy EVM bridge first");
+if (!AZTEC_WORMHOLE_ADDRESS) throw new Error("AZTEC_WORMHOLE_ADDRESS not set in .env");
+if (!EVM_WORMHOLE_ADDRESS) throw new Error("EVM_WORMHOLE_ADDRESS not set in .env");
 
 interface CheckResult {
     side: string;
@@ -37,12 +41,13 @@ interface CheckResult {
 async function checkEvmBridge(): Promise<CheckResult> {
     console.log("\n=== Checking EVM MessageBridge ===");
     console.log(`EVM Bridge Address: ${EVM_BRIDGE_ADDRESS}`);
-    console.log(`Looking for Aztec emitter (chain ${AZTEC_WORMHOLE_CHAIN_ID})`);
+    console.log(`Looking for Aztec Wormhole emitter (chain ${AZTEC_WORMHOLE_CHAIN_ID})`);
 
     const { publicClient } = createEvmClients(ARBITRUM_RPC_URL!, EVM_PRIVATE_KEY!);
     const evmBridgeAddress = getAddress(EVM_BRIDGE_ADDRESS!);
 
-    const expectedEmitter = addressToBytes32(AZTEC_BRIDGE_ADDRESS!);
+    // The emitter should be the Aztec Wormhole contract, not the bridge
+    const expectedEmitter = addressToBytes32(AZTEC_WORMHOLE_ADDRESS!);
 
     // New: nested mapping (chainId => emitterAddress => bool)
     const isRegistered = await publicClient.readContract({
@@ -67,7 +72,7 @@ async function checkEvmBridge(): Promise<CheckResult> {
 async function checkAztecBridge(): Promise<CheckResult> {
     console.log("\n=== Checking Aztec MessageBridge ===");
     console.log(`Aztec Bridge Address: ${AZTEC_BRIDGE_ADDRESS}`);
-    console.log(`Looking for EVM emitter (chain ${ARBITRUM_SEPOLIA_CHAIN_ID})`);
+    console.log(`Looking for EVM Wormhole emitter (chain ${ARBITRUM_SEPOLIA_CHAIN_ID})`);
 
     const node = createAztecNodeClient(AZTEC_NODE_URL!);
     const wallet = await TestWallet.create(node, getTestnetPxeConfig());
@@ -81,8 +86,9 @@ async function checkAztecBridge(): Promise<CheckResult> {
 
     const bridge = await MessageBridgeContract.at(bridgeAddress, wallet);
 
-    const expectedEmitter = addressToBytes32(EVM_BRIDGE_ADDRESS!);
-    const evmEmitterBytes = hexToBytes32Array(EVM_BRIDGE_ADDRESS!);
+    // The emitter should be the EVM Wormhole contract, not the bridge
+    const expectedEmitter = addressToBytes32(EVM_WORMHOLE_ADDRESS!);
+    const evmEmitterBytes = hexToBytes32Array(EVM_WORMHOLE_ADDRESS!);
 
     // New API: is_emitter_registered(chain_id, emitter_address) -> bool
     const isRegistered = await bridge.methods
@@ -103,9 +109,11 @@ async function checkAztecBridge(): Promise<CheckResult> {
 
 async function main() {
     console.log("Checking cross-chain bridge emitter registrations...");
-    console.log(`\nBridge Addresses from .env:`);
+    console.log(`\nAddresses from .env:`);
     console.log(`  Aztec Bridge: ${AZTEC_BRIDGE_ADDRESS}`);
     console.log(`  EVM Bridge: ${EVM_BRIDGE_ADDRESS}`);
+    console.log(`  Aztec Wormhole (emitter): ${AZTEC_WORMHOLE_ADDRESS}`);
+    console.log(`  EVM Wormhole (emitter): ${EVM_WORMHOLE_ADDRESS}`);
 
     const results: CheckResult[] = [];
 
