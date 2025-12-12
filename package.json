@@ -17,19 +17,24 @@
     "build": "pnpm run build:aztec && pnpm run build:evm",
     "build:aztec": "tsx scripts/buildAztec.ts",
     "build:evm": "cd packages/evm && forge build --skip test",
+    "build:solana": "cd packages/solana/message_bridge && anchor build",
     "create-relayer-account": "tsx scripts/setupRelayerAccount.ts",
     "deploy:evm": "tsx scripts/deployEVM.ts",
     "deploy:aztec": "tsx scripts/deployAztec.ts",
-    "deploy:all": "pnpm run deploy:evm && pnpm run deploy:aztec",
+    "deploy:solana": "tsx scripts/deploySolana.ts",
+    "deploy:all": "pnpm run deploy:evm && pnpm run deploy:aztec && pnpm run deploy:solana",
     "register-emitters": "tsx scripts/registerEmitters.ts",
     "send:aztec": "tsx scripts/sendValueAztec.ts",
     "send:evm": "tsx scripts/sendValueEVM.ts",
     "read:values": "tsx scripts/readValues.ts",
     "read:emitters": "tsx scripts/readEmitters.ts",
+    "test:solana": "tsx scripts/testSolanaCounter.ts",
     "relayer": "docker compose up"
   },
   "dependencies": {
-    "@aztec-wormhole-demo/aztec-contracts": "workspace:*"
+    "@aztec-wormhole-demo/aztec-contracts": "workspace:*",
+    "@coral-xyz/anchor": "^0.30.1",
+    "@solana/web3.js": "^1.95.0"
   },
   "devDependencies": {
     "tsx": "^4.19.2"

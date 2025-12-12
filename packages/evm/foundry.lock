@@ -1,4 +1,13 @@
 {
+  "../../deps/openzeppelin-contracts": {
+    "rev": "77bc5642a53d9c8eac8aec5c8ea9809a21d466cb"
+  },
+  "../../deps/wormhole": {
+    "rev": "980c5401c94c3565459eb71004cdaf4c2820256d"
+  },
+  "../../deps/wormhole-evm": {
+    "rev": "eb478c8040c19874357eb52146dce4d9fbc960c9"
+  },
   "lib/forge-std": {
     "tag": {
       "name": "v1.12.0",
