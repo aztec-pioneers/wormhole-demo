@@ -10,7 +10,14 @@ import { MessageBridgeContract, MessageBridgeContractArtifact } from "@aztec-wor
 import { loadAccount, getTestnetPxeConfig, testnetSendWaitOpts } from "./utils/aztec";
 import { addressToBytes32, hexToBytes32Array } from "./utils/bytes";
 import { createEvmClients, MESSAGE_BRIDGE_ABI } from "./utils/evm";
+import { createSolanaClient, loadKeypair, formatEmitterAddress } from "./utils/solana";
 import { AZTEC_WORMHOLE_CHAIN_ID, ARBITRUM_SEPOLIA_CHAIN_ID } from "@aztec-wormhole-demo/aztec-contracts/constants";
+import {
+    CHAIN_ID_SOLANA,
+    CHAIN_ID_ARBITRUM_SEPOLIA,
+    CHAIN_ID_AZTEC,
+    MessageBridgeClient,
+} from "@aztec-wormhole-demo/solana-sdk";
 
 const {
     AZTEC_NODE_URL,
@@ -20,6 +27,8 @@ const {
     EVM_BRIDGE_ADDRESS,
     AZTEC_WORMHOLE_ADDRESS,
     EVM_WORMHOLE_ADDRESS,
+    SOLANA_RPC_URL,
+    SOLANA_BRIDGE_PROGRAM_ID,
 } = process.env;
 
 if (!AZTEC_NODE_URL) throw new Error("AZTEC_NODE_URL not set in .env");
@@ -30,30 +39,15 @@ if (!EVM_BRIDGE_ADDRESS) throw new Error("EVM_BRIDGE_ADDRESS not set in .env - d
 if (!AZTEC_WORMHOLE_ADDRESS) throw new Error("AZTEC_WORMHOLE_ADDRESS not set in .env");
 if (!EVM_WORMHOLE_ADDRESS) throw new Error("EVM_WORMHOLE_ADDRESS not set in .env");
 
+// Solana is optional
+const SOLANA_ENABLED = SOLANA_RPC_URL && SOLANA_BRIDGE_PROGRAM_ID;
+
 async function configureEvmBridge() {
     console.log("\n=== Configuring EVM MessageBridge ===");
     console.log(`EVM Bridge: ${EVM_BRIDGE_ADDRESS}`);
-    console.log(`Aztec Chain ID: ${AZTEC_WORMHOLE_CHAIN_ID}`);
-    console.log(`Aztec Wormhole (emitter): ${AZTEC_WORMHOLE_ADDRESS}`);
 
     const { account, publicClient, walletClient } = createEvmClients(ARBITRUM_RPC_URL!, EVM_PRIVATE_KEY!);
     const evmBridgeAddress = getAddress(EVM_BRIDGE_ADDRESS!);
-
-    // Register the Aztec Wormhole contract as the emitter (not the bridge)
-    const aztecEmitterBytes32 = addressToBytes32(AZTEC_WORMHOLE_ADDRESS!);
-
-    // Check if already registered (one emitter per chain)
-    const registeredEmitter = await publicClient.readContract({
-        address: evmBridgeAddress,
-        abi: MESSAGE_BRIDGE_ABI,
-        functionName: "registeredEmitters",
-        args: [AZTEC_WORMHOLE_CHAIN_ID],
-    }) as `0x${string}`;
-
-    if (registeredEmitter.toLowerCase() === aztecEmitterBytes32.toLowerCase()) {
-        console.log("Aztec emitter already registered on EVM bridge");
-        return;
-    }
 
     // Check ownership
     const owner = await publicClient.readContract({
@@ -66,26 +60,64 @@ async function configureEvmBridge() {
         throw new Error(`Not owner of EVM bridge. Owner: ${owner}, You: ${account.address}`);
     }
 
-    // Register the Aztec emitter
-    console.log("Registering Aztec emitter on EVM bridge...");
-    const hash = await walletClient.writeContract({
+    // Register Aztec emitter
+    console.log(`\n  Registering Aztec emitter (chain ${AZTEC_WORMHOLE_CHAIN_ID})...`);
+    const aztecEmitterBytes32 = addressToBytes32(AZTEC_WORMHOLE_ADDRESS!);
+
+    const aztecRegistered = await publicClient.readContract({
         address: evmBridgeAddress,
         abi: MESSAGE_BRIDGE_ABI,
-        functionName: "registerEmitter",
-        args: [AZTEC_WORMHOLE_CHAIN_ID, aztecEmitterBytes32],
-    });
+        functionName: "registeredEmitters",
+        args: [AZTEC_WORMHOLE_CHAIN_ID],
+    }) as `0x${string}`;
 
-    console.log(`Transaction submitted: ${hash}`);
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-    console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
-    console.log("Aztec emitter registered on EVM bridge!");
+    if (aztecRegistered.toLowerCase() === aztecEmitterBytes32.toLowerCase()) {
+        console.log("    Aztec emitter already registered");
+    } else {
+        const hash = await walletClient.writeContract({
+            address: evmBridgeAddress,
+            abi: MESSAGE_BRIDGE_ABI,
+            functionName: "registerEmitter",
+            args: [AZTEC_WORMHOLE_CHAIN_ID, aztecEmitterBytes32],
+        });
+        const receipt = await publicClient.waitForTransactionReceipt({ hash });
+        console.log(`    Registered in block ${receipt.blockNumber}`);
+    }
+
+    // Register Solana emitter if enabled
+    if (SOLANA_ENABLED) {
+        console.log(`\n  Registering Solana emitter (chain ${CHAIN_ID_SOLANA})...`);
+        const { client } = createSolanaClient(SOLANA_RPC_URL!, SOLANA_BRIDGE_PROGRAM_ID!);
+        const solanaEmitter = client.getEmitterAddress();
+        const solanaEmitterBytes32 = formatEmitterAddress(solanaEmitter) as `0x${string}`;
+
+        const solanaRegistered = await publicClient.readContract({
+            address: evmBridgeAddress,
+            abi: MESSAGE_BRIDGE_ABI,
+            functionName: "registeredEmitters",
+            args: [CHAIN_ID_SOLANA],
+        }) as `0x${string}`;
+
+        if (solanaRegistered.toLowerCase() === solanaEmitterBytes32.toLowerCase()) {
+            console.log("    Solana emitter already registered");
+        } else {
+            const hash = await walletClient.writeContract({
+                address: evmBridgeAddress,
+                abi: MESSAGE_BRIDGE_ABI,
+                functionName: "registerEmitter",
+                args: [CHAIN_ID_SOLANA, solanaEmitterBytes32],
+            });
+            const receipt = await publicClient.waitForTransactionReceipt({ hash });
+            console.log(`    Registered in block ${receipt.blockNumber}`);
+        }
+    }
+
+    console.log("EVM bridge configuration complete!");
 }
 
 async function configureAztecBridge() {
     console.log("\n=== Configuring Aztec MessageBridge ===");
     console.log(`Aztec Bridge: ${AZTEC_BRIDGE_ADDRESS}`);
-    console.log(`EVM Chain ID: ${ARBITRUM_SEPOLIA_CHAIN_ID}`);
-    console.log(`EVM Bridge (emitter): ${EVM_BRIDGE_ADDRESS}`);
 
     const node = createAztecNodeClient(AZTEC_NODE_URL!);
     const wallet = await TestWallet.create(node, getTestnetPxeConfig());
@@ -99,13 +131,7 @@ async function configureAztecBridge() {
     if (!instance) throw new Error("Aztec bridge contract not registered in node");
     await wallet.registerContract(instance, MessageBridgeContractArtifact)
 
-    const bridge = await MessageBridgeContract.at(
-        AztecAddress.fromString(AZTEC_BRIDGE_ADDRESS!),
-        wallet
-    );
-
-    // Register the EVM Bridge as the emitter (the contract that calls wormhole.publishMessage)
-    const evmEmitterBytes = hexToBytes32Array(EVM_BRIDGE_ADDRESS!);
+    const bridge = await MessageBridgeContract.at(bridgeAddress, wallet);
 
     // Check ownership
     const owner = await bridge.methods.get_owner().simulate({ from: adminAddress });
@@ -113,29 +139,119 @@ async function configureAztecBridge() {
         throw new Error(`Not owner of Aztec bridge. Owner: ${owner.toString()}, You: ${adminAddress.toString()}`);
     }
 
-    // Register the EVM emitter
-    console.log("Registering EVM emitter on Aztec bridge...");
     const opts = await testnetSendWaitOpts(node, wallet, adminAddress);
 
-    await bridge.methods
-        .register_emitter(ARBITRUM_SEPOLIA_CHAIN_ID, evmEmitterBytes as any)
-        .send(opts.send)
-        .wait(opts.wait);
+    // Register EVM emitter
+    console.log(`\n  Registering EVM emitter (chain ${ARBITRUM_SEPOLIA_CHAIN_ID})...`);
+    const evmEmitterBytes = hexToBytes32Array(EVM_BRIDGE_ADDRESS!);
 
-    console.log("EVM emitter registered on Aztec bridge!");
+    const evmRegistered = await bridge.methods
+        .is_emitter_registered(ARBITRUM_SEPOLIA_CHAIN_ID, evmEmitterBytes as any)
+        .simulate({ from: adminAddress });
+
+    if (evmRegistered) {
+        console.log("    EVM emitter already registered");
+    } else {
+        await bridge.methods
+            .register_emitter(ARBITRUM_SEPOLIA_CHAIN_ID, evmEmitterBytes as any)
+            .send(opts.send)
+            .wait(opts.wait);
+        console.log("    EVM emitter registered!");
+    }
+
+    // Register Solana emitter if enabled
+    if (SOLANA_ENABLED) {
+        console.log(`\n  Registering Solana emitter (chain ${CHAIN_ID_SOLANA})...`);
+        const { client } = createSolanaClient(SOLANA_RPC_URL!, SOLANA_BRIDGE_PROGRAM_ID!);
+        const solanaEmitter = client.getEmitterAddress();
+        const solanaEmitterBytes = hexToBytes32Array(formatEmitterAddress(solanaEmitter));
+
+        const solanaRegistered = await bridge.methods
+            .is_emitter_registered(CHAIN_ID_SOLANA, solanaEmitterBytes as any)
+            .simulate({ from: adminAddress });
+
+        if (solanaRegistered) {
+            console.log("    Solana emitter already registered");
+        } else {
+            await bridge.methods
+                .register_emitter(CHAIN_ID_SOLANA, solanaEmitterBytes as any)
+                .send(opts.send)
+                .wait(opts.wait);
+            console.log("    Solana emitter registered!");
+        }
+    }
+
+    console.log("Aztec bridge configuration complete!");
+}
+
+async function configureSolanaBridge() {
+    if (!SOLANA_ENABLED) {
+        console.log("\n=== Skipping Solana MessageBridge (not configured) ===");
+        return;
+    }
+
+    console.log("\n=== Configuring Solana MessageBridge ===");
+    console.log(`Solana Program: ${SOLANA_BRIDGE_PROGRAM_ID}`);
+
+    const { client } = createSolanaClient(SOLANA_RPC_URL!, SOLANA_BRIDGE_PROGRAM_ID!);
+    const owner = loadKeypair();
+
+    console.log(`Using owner: ${owner.publicKey.toBase58()}`);
+
+    // Check if initialized
+    const isInitialized = await client.isInitialized();
+    if (!isInitialized) {
+        console.log("  ⚠️  Program not initialized. Run deploy script first.");
+        return;
+    }
+
+    // Register EVM emitter
+    console.log(`\n  Registering EVM emitter (chain ${CHAIN_ID_ARBITRUM_SEPOLIA})...`);
+    const evmEmitterBytes = MessageBridgeClient.evmAddressToWormhole(EVM_BRIDGE_ADDRESS!);
+
+    const evmEmitter = await client.getForeignEmitter(CHAIN_ID_ARBITRUM_SEPOLIA);
+    if (evmEmitter && Buffer.from(evmEmitter.address).equals(Buffer.from(evmEmitterBytes))) {
+        console.log("    EVM emitter already registered");
+    } else {
+        const sig = await client.registerEmitter(owner, CHAIN_ID_ARBITRUM_SEPOLIA, evmEmitterBytes);
+        console.log(`    Registered! Signature: ${sig}`);
+    }
+
+    // Register Aztec emitter
+    console.log(`\n  Registering Aztec emitter (chain ${CHAIN_ID_AZTEC})...`);
+    const aztecEmitterBytes = MessageBridgeClient.aztecAddressToWormhole(AZTEC_WORMHOLE_ADDRESS!);
+
+    const aztecEmitter = await client.getForeignEmitter(CHAIN_ID_AZTEC);
+    if (aztecEmitter && Buffer.from(aztecEmitter.address).equals(Buffer.from(aztecEmitterBytes))) {
+        console.log("    Aztec emitter already registered");
+    } else {
+        const sig = await client.registerEmitter(owner, CHAIN_ID_AZTEC, aztecEmitterBytes);
+        console.log(`    Registered! Signature: ${sig}`);
+    }
+
+    console.log("Solana bridge configuration complete!");
 }
 
 async function main() {
     console.log("Configuring cross-chain bridges...");
-    console.log(`Aztec Wormhole Chain ID: ${AZTEC_WORMHOLE_CHAIN_ID}`);
-    console.log(`Arbitrum Sepolia Wormhole Chain ID: ${ARBITRUM_SEPOLIA_CHAIN_ID}`);
+    console.log(`\nChain IDs:`);
+    console.log(`  Aztec: ${AZTEC_WORMHOLE_CHAIN_ID}`);
+    console.log(`  Arbitrum Sepolia: ${ARBITRUM_SEPOLIA_CHAIN_ID}`);
+    if (SOLANA_ENABLED) {
+        console.log(`  Solana: ${CHAIN_ID_SOLANA}`);
+    }
 
-    // Configure both sides
+    // Configure all bridges
     await configureEvmBridge();
     await configureAztecBridge();
+    await configureSolanaBridge();
 
     console.log("\n=== Emitter Registration Complete ===");
-    console.log("Both bridges are now registered to trust each other.");
+    if (SOLANA_ENABLED) {
+        console.log("All three bridges are now registered to trust each other.");
+    } else {
+        console.log("Both bridges are now registered to trust each other.");
+    }
 }
 
 main().catch((err) => {

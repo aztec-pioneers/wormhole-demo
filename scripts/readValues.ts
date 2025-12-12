@@ -8,9 +8,20 @@ import { TestWallet } from "@aztec/test-wallet/server";
 import { MessageBridgeContract, MessageBridgeContractArtifact } from "@aztec-wormhole-demo/aztec-contracts/artifacts";
 import { loadAccount, getTestnetPxeConfig } from "./utils/aztec";
 import { createEvmClients, MESSAGE_BRIDGE_ABI } from "./utils/evm";
+import { createSolanaClient } from "./utils/solana";
 import { getAddress } from "viem";
 
-const { AZTEC_NODE_URL, AZTEC_BRIDGE_ADDRESS, ARBITRUM_RPC_URL, EVM_PRIVATE_KEY, EVM_BRIDGE_ADDRESS } = process.env;
+const {
+    AZTEC_NODE_URL,
+    AZTEC_BRIDGE_ADDRESS,
+    ARBITRUM_RPC_URL,
+    EVM_PRIVATE_KEY,
+    EVM_BRIDGE_ADDRESS,
+    SOLANA_RPC_URL,
+    SOLANA_BRIDGE_PROGRAM_ID,
+} = process.env;
+
+const SOLANA_ENABLED = SOLANA_RPC_URL && SOLANA_BRIDGE_PROGRAM_ID;
 
 async function readEvmBridge() {
     if (!ARBITRUM_RPC_URL || !EVM_BRIDGE_ADDRESS) {
@@ -71,12 +82,43 @@ async function readAztecBridge() {
     }
 }
 
+async function readSolanaBridge() {
+    if (!SOLANA_ENABLED) {
+        console.log("\n=== Solana Bridge ===");
+        console.log("  Not configured (missing SOLANA_RPC_URL or SOLANA_BRIDGE_PROGRAM_ID)");
+        return;
+    }
+
+    try {
+        const { client } = createSolanaClient(SOLANA_RPC_URL!, SOLANA_BRIDGE_PROGRAM_ID!);
+
+        // Check if initialized
+        const isInitialized = await client.isInitialized();
+        if (!isInitialized) {
+            console.log("\n=== Solana Bridge (Devnet) ===");
+            console.log(`  Program: ${SOLANA_BRIDGE_PROGRAM_ID}`);
+            console.log("  Status: Not initialized");
+            return;
+        }
+
+        const currentValue = await client.getCurrentValue();
+
+        console.log("\n=== Solana Bridge (Devnet) ===");
+        console.log(`  Program: ${SOLANA_BRIDGE_PROGRAM_ID}`);
+        console.log(`  Current value: ${currentValue !== null ? currentValue : "Not set"}`);
+    } catch (err) {
+        console.log("\n=== Solana Bridge (Devnet) ===");
+        console.log(`  Error reading: ${err}`);
+    }
+}
+
 async function main() {
-    console.log("Reading bridge state from both chains...");
+    console.log("Reading bridge state from all chains...");
 
     await Promise.all([
         readEvmBridge(),
         readAztecBridge(),
+        readSolanaBridge(),
     ]);
 
     console.log("");

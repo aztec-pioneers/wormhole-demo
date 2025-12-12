@@ -50,8 +50,9 @@ This document outlines the full integration plan for adding Solana support to th
   - Fund wallet via faucet: https://faucet.solana.com
 
 - [x] **1.3** Add Solana dependencies to workspace
-  - Update `pnpm-workspace.yaml` to include `packages/solana`
+  - Update `pnpm-workspace.yaml` to include `packages/solana/ts`
   - Add `@solana/web3.js` and `@coral-xyz/anchor` to root deps
+  - Add `@aztec-wormhole-demo/solana-sdk@workspace:*` to root for script imports
 
 ---
 
@@ -196,31 +197,37 @@ This document outlines the full integration plan for adding Solana support to th
 
 - [x] **5.1** Create `scripts/deploySolana.ts`
   - Deploy MessageBridge program to devnet
+  - Initialize bridge (Config, CurrentValue, WormholeEmitter PDAs)
   - Initialize counter for testing
   - Save program ID to `.env`
-  - **Deployed to devnet: `3h4x6rCxFuAnuhavC6Wczusv2YgTA3mn5FWEsjXxnLWk`**
+  - Print emitter address for registration
+  - **Note: Previous deployment closed to recover rent; awaiting redeploy**
 
 - [x] **5.2** Create `scripts/testSolanaCounter.ts`
   - Test basic contract access on devnet
   - Verified counter increment works
 
-- [ ] **5.3** Create `scripts/sendValueSolana.ts`
-  - Send value from Solana to Aztec/EVM
-  - Handle Wormhole fee
+- [x] **5.3** Unified `scripts/send.ts`
+  - Single script: `pnpm send <value> --from <source> --to <destination>`
+  - Supports all chains: arbitrum | solana | aztec
+  - u128 range validation, chain validation, source != destination
+  - Replaces old sendValueEVM.ts and sendValueAztec.ts
 
-- [ ] **5.4** Update `scripts/registerEmitters.ts`
+- [x] **5.4** Update `scripts/registerEmitters.ts`
   - Register Solana emitter on EVM
   - Register Solana emitter on Aztec
   - Register EVM emitter on Solana
   - Register Aztec emitter on Solana
+  - Created `scripts/utils/solana.ts` with `loadKeypair()`, `createSolanaClient()`, etc.
 
-- [ ] **5.5** Update `scripts/readValues.ts`
+- [x] **5.5** Update `scripts/readValues.ts`
   - Add Solana value reading
   - Display tri-chain state
 
-- [ ] **5.6** Update `scripts/readEmitters.ts`
+- [x] **5.6** Update `scripts/readEmitters.ts`
   - Show Solana registered emitters
   - Show Solana emitter on other chains
+  - Checks all 6 emitter registrations across 3 chains
 
 - [x] **5.7** Update root `package.json` scripts
   ```json

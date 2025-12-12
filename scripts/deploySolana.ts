@@ -8,6 +8,7 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
+import { createSolanaClient, loadKeypair } from "./utils/solana";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -66,24 +67,70 @@ async function main() {
         SOLANA_RPC_URL: SOLANA_RPC_URL,
     });
 
-    // 5. Initialize the counter (for testing)
-    console.log("\n4. Initializing counter for testing...");
+    // 5. Initialize the bridge (Config, CurrentValue, WormholeEmitter)
+    console.log("\n4. Initializing bridge...");
+    try {
+        await initializeBridge(programId);
+        console.log("Bridge initialized successfully!");
+    } catch (err: any) {
+        if (err.message?.includes("already in use") || err.message?.includes("0x0")) {
+            console.log("Bridge already initialized, skipping.");
+        } else {
+            console.error("Failed to initialize bridge:", err.message);
+            throw err;
+        }
+    }
+
+    // 6. Initialize the counter (for testing)
+    console.log("\n5. Initializing counter for testing...");
     try {
         await initializeCounter(programId);
         console.log("Counter initialized successfully!");
     } catch (err: any) {
-        if (err.message?.includes("already in use")) {
+        if (err.message?.includes("already in use") || err.message?.includes("0x0")) {
             console.log("Counter already initialized, skipping.");
         } else {
             console.error("Failed to initialize counter:", err.message);
         }
     }
 
+    // 7. Print emitter address for registration on other chains
+    const { client } = createSolanaClient(SOLANA_RPC_URL, programId);
+    const emitterAddress = client.getEmitterAddress();
+    const emitterHex = "0x" + Buffer.from(emitterAddress).toString("hex");
+
     console.log("\n========================================");
     console.log("Deployment complete!");
     console.log(`Program ID: ${programId}`);
+    console.log(`Emitter Address: ${emitterHex}`);
     console.log(`Cluster: devnet`);
     console.log("========================================");
+    console.log("\nNext steps:");
+    console.log("  1. Run 'pnpm run configure:aztec' to register emitters on all chains");
+}
+
+async function initializeBridge(programId: string) {
+    const { client } = createSolanaClient(SOLANA_RPC_URL, programId);
+    const payer = loadKeypair();
+
+    console.log(`  Payer: ${payer.publicKey.toBase58()}`);
+
+    // Check if already initialized
+    const isInitialized = await client.isInitialized();
+    if (isInitialized) {
+        console.log("  Bridge already initialized, skipping.");
+        return;
+    }
+
+    // Get PDAs for logging
+    const pdas = client.getPDAs();
+    console.log(`  Config PDA: ${pdas.config.toBase58()}`);
+    console.log(`  CurrentValue PDA: ${pdas.currentValue.toBase58()}`);
+    console.log(`  WormholeEmitter PDA: ${pdas.wormholeEmitter.toBase58()}`);
+
+    // Initialize the bridge
+    const sig = await client.initialize(payer);
+    console.log(`  Transaction: ${sig}`);
 }
 
 async function initializeCounter(programId: string) {
