@@ -34,6 +34,18 @@ pub struct DecodedVAAEnvelope {
     pub consistency_level: u8,
 }
 
+impl DecodedVAAEnvelope {
+    // Converts the emitter address to a Field
+    // drops the first byte of the emitter address to fit into 254 bit field
+    pub fn emitter_as_field(self) -> Field {
+        let mut addr_bytes = [0; 31];
+        for i in 0..31 {
+            addr_bytes[i] = self.emitter_address[i + 1];
+        }
+        Field::from_be_bytes(addr_bytes)
+    }
+}
+
 /// Decoded message payload
 pub struct DecodedVAAPayload {
     pub message_id: u8,
@@ -41,13 +53,6 @@ pub struct DecodedVAAPayload {
     pub destination_chain_id: u16,
     pub sender: [u8; 32],
     pub value: u8,
-}
-
-/// Full decoded VAA (envelope + payload + nullifier)
-pub struct DecodedVAA {
-    pub envelope: DecodedVAAEnvelope,
-    pub payload: DecodedVAAPayload,
-    pub nullifier: Field,
 }
 
 

@@ -74,9 +74,9 @@ pub contract MessageBridge {
         // 2. pack eth address into a field
         let  mut emitter_address_truncated = [0; 31];
         for i in 0..31 {
-            emitter_address_truncated[i] = emitter_address[i];
+            emitter_address_truncated[i] = emitter_address[i + 1];
         }
-        let emitter_address_field = Field::from_le_bytes(emitter_address_truncated);
+        let emitter_address_field = Field::from_be_bytes(emitter_address_truncated);
 
         // 3. register emitter
         storage.registered_emitters
@@ -156,36 +156,29 @@ pub contract MessageBridge {
         let config = storage.config.read();
         Wormhole::at(config.wormhole_address).verify_vaa(vaa, length).call(&mut context);
 
-        // 2. decode the VAA (body + payload)
-        let decoded = decode_vaa(vaa);
+        // 2. decode the VAA (envelope + payload) and compute vaa nullifier
+        let (vaa_envelope, vaa_payload, vaa_nullifier) = decode_vaa(vaa);
 
         // 3. validate destination chain is this chain
         assert(
-            decoded.payload.destination_chain_id == config.chain_id,
+            vaa_payload.destination_chain_id == config.chain_id,
             "Invalid destination chain ID"
         );
 
         // 4. validate emitter from VAA envelope (not sender from payload)
-        // The emitter is the contract that called wormhole.publishMessage on the source chain
-        let mut emitter_truncated = [0; 31];
-        for i in 0..31 {
-            emitter_truncated[i] = decoded.envelope.emitter_address[i];
-        }
-        let emitter_field = Field::from_le_bytes(emitter_truncated);
-
         let is_registered_emitter = storage.registered_emitters
-            .at(decoded.envelope.emitter_chain_id)
-            .at(emitter_field)
+            .at(vaa_envelope.emitter_chain_id)
+            .at(vaa_envelope.emitter_as_field())
             .read();
         assert(is_registered_emitter, "Emitter not registered");
 
         // 5. emit the nullifier to prevent replays
         // note: will fail if nullifier has already been emitted
-        context.push_nullifier(decoded.nullifier);
+        context.push_nullifier(vaa_nullifier);
 
         // 6. update state with received value
         MessageBridge::at(context.this_address())
-            ._update_value(decoded.payload.value)
+            ._update_value(vaa_payload.value)
             .enqueue(&mut context);
     }
 
@@ -211,12 +204,12 @@ pub contract MessageBridge {
 
     #[external("utility")]
     unconstrained fn is_emitter_registered(chain_id: u16, emitter_address: [u8; 32]) -> bool {
-        // pack eth address into a field
+        // pack eth address into a field (take bytes 1-31 to preserve EVM address suffix)
         let mut emitter_address_truncated = [0; 31];
         for i in 0..31 {
-            emitter_address_truncated[i] = emitter_address[i];
+            emitter_address_truncated[i] = emitter_address[i + 1];
         }
-        let emitter_address_field = Field::from_le_bytes(emitter_address_truncated);
+        let emitter_address_field = Field::from_be_bytes(emitter_address_truncated);
 
         storage.registered_emitters
             .at(chain_id)

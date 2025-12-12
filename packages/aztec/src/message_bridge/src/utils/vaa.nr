@@ -14,6 +14,11 @@ use crate::utils::{
     u16_to_u8
 };
 
+pub struct DecodedVAA {
+    pub envelope: DecodedVAAEnvelope,
+    pub payload: DecodedVAAPayload,
+}
+
 /// Parse a raw VAA and extract envelope, payload, and compute nullifier
 ///
 /// VAA structure (with 1 signature):
@@ -21,16 +26,15 @@ use crate::utils::{
 ///   Bytes 6-71:    Signature - skipped
 ///   Bytes 72-122:  Envelope (timestamp, nonce, emitter chain, emitter addr, sequence, consistency)
 ///   Bytes 123+:    Payload
-pub fn decode_vaa(vaa: [u8; VAA_MAX_LENGTH]) -> DecodedVAA {
+pub fn decode_vaa(vaa: [u8; VAA_MAX_LENGTH]) -> (
+    DecodedVAAEnvelope,
+    DecodedVAAPayload,
+    Field,
+) {
     let envelope = decode_vaa_envelope(vaa);
     let payload = decode_vaa_payload(vaa);
-    let nullifier = compute_nullifier(vaa);
-
-    DecodedVAA {
-        envelope,
-        payload,
-        nullifier,
-    }
+    let nullifier = compute_vaa_nullifier(vaa);
+    (envelope, payload, nullifier)
 }
 
 /// Parse the VAA envelope (starts at byte 72 for 1 signature)
@@ -144,7 +148,7 @@ pub fn decode_vaa_payload(vaa: [u8; VAA_MAX_LENGTH]) -> DecodedVAAPayload {
 }
 
 /// Compute nullifier from VAA bytes (for replay protection)
-fn compute_nullifier(vaa: [u8; VAA_MAX_LENGTH]) -> Field {
+fn compute_vaa_nullifier(vaa: [u8; VAA_MAX_LENGTH]) -> Field {
     // Pack the relevant bytes (envelope + payload) for hashing
     let mut nullifier_bytes = [0; MESSAGE_NULLIFIER_LENGTH];
     for i in 0..MESSAGE_NULLIFIER_LENGTH {
