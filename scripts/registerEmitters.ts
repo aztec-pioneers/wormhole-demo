@@ -136,8 +136,6 @@ async function main() {
 
     console.log("\n=== Configuration Complete ===");
     console.log("Both bridges are now configured to trust each other.");
-    console.log("\nYou can now send messages between chains:");
-    console.log("  - Aztec -> EVM: pnpm --filter @wormhole-demo/aztec send");
 }
 
 main().catch((err) => {
