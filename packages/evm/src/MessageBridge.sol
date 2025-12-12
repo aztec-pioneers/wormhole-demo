@@ -13,17 +13,14 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  *
  * This contract runs on Arbitrum Sepolia and receives cross-chain messages from Aztec.
  *
- * Aztec Wormhole Payload Structure:
- * The Aztec Wormhole contract emits a public log with 13 Fields:
- *   - Fields 0-4: Header (sender, sequence, nonce, consistency, timestamp) = 160 bytes
- *   - Fields 5-12: Message payload in 31-byte chunks (little-endian reversed)
- *
- * The Aztec side encodes:
- *   - Chunk 0: [value, srcChainHi, srcChainLo, dstChainHi, dstChainLo, payloadId, zeros...]
- *   - Chunk 1: [sender bytes 0-30]
- *   - Chunk 2: [sender byte 31, zeros...]
- *
- * After LE reversal, value is at byte 191 (160 header + 31 end of Field 5)
+ * Aztec Guardian Payload Structure (after zero-stripping and byte reversal):
+ *   - Bytes 0-31:  txId (32 bytes, added by guardian)
+ *   - Byte 32:     messageId (PAYLOAD_ID_MESSAGE = 99)
+ *   - Bytes 33-34: sourceChainId (big-endian)
+ *   - Bytes 35-36: destinationChainId (big-endian)
+ *   - Bytes 37-68: sender (32 bytes)
+ *   - Bytes 69-73: padding (5 bytes of zeros)
+ *   - Byte 74:     value
  */
 contract MessageBridge is Ownable {
     using BytesLib for bytes;
@@ -51,8 +48,11 @@ contract MessageBridge is Ownable {
     // Consistency level for outbound messages
     uint8 public immutable finality;
 
-    // Registered emitters: remoteChainId => emitterAddress
+    // Registered emitters: remoteChainId => emitterAddress => bool
     mapping(uint16 => mapping(bytes32 => bool)) public registeredEmitters;
+
+    // Registered senders: remoteChainId => senderAddress => bool
+    mapping(uint16 => mapping(bytes32 => bool)) public registeredSenders;
 
     // Processed messages for replay protection: txId => value
     // Non-zero value means processed
@@ -69,6 +69,7 @@ contract MessageBridge is Ownable {
     // ============================================================================
 
     event EmitterRegistered(uint16 indexed chainId, bytes32 emitterAddress);
+    event SenderRegistered(uint16 indexed chainId, bytes32 senderAddress);
     event ValueReceived(
         uint16 indexed sourceChainId,
         bytes32 indexed sender,
@@ -129,6 +130,17 @@ contract MessageBridge is Ownable {
         require(emitterAddress != bytes32(0), "Emitter cannot be zero");
         registeredEmitters[remoteChainId][emitterAddress] = true;
         emit EmitterRegistered(remoteChainId, emitterAddress);
+    }
+
+    /**
+     * @notice Register a trusted sender from a remote chain
+     * @param remoteChainId Wormhole chain ID of the remote chain (e.g., 56 for Aztec)
+     * @param senderAddress Sender address as bytes32 (the Aztec MessageBridge contract)
+     */
+    function registerSender(uint16 remoteChainId, bytes32 senderAddress) external onlyOwner {
+        require(senderAddress != bytes32(0), "Sender cannot be zero");
+        registeredSenders[remoteChainId][senderAddress] = true;
+        emit SenderRegistered(remoteChainId, senderAddress);
     }
 
     // ============================================================================
@@ -209,8 +221,16 @@ contract MessageBridge is Ownable {
 
     function _processPayload(bytes memory payload) internal {
 
-        // Minimum: 32 (txId) + 31 (chunk0) + 31 (chunk1) + 7 (to reach value in chunk2) = 101 bytes
-        require(payload.length >= 101, "Payload too short");
+        // Actual payload structure from Aztec Guardian (after zero-stripping and reversal):
+        // Bytes 0-31:  txId (32 bytes)
+        // Byte 32:     messageId
+        // Bytes 33-34: sourceChainId (big-endian)
+        // Bytes 35-36: destinationChainId (big-endian)
+        // Bytes 37-68: sender (32 bytes, contiguous)
+        // Bytes 69-73: padding zeros (5 bytes)
+        // Byte 74:     value
+        // Minimum: 75 bytes to reach value
+        require(payload.length >= 75, "Payload too short");
 
         // Extract txId from first 32 bytes (added by Aztec Guardian)
         bytes32 txId;
@@ -223,12 +243,6 @@ contract MessageBridge is Ownable {
         require(nullifiers[txId] == false, "Already processed");
         nullifiers[txId] = true;
 
-        // Chunk 0 starts at byte 32
-        // [0]: messageId
-        // [1-2]: sourceChainId (big-endian)
-        // [3-4]: destinationChainId (big-endian)
-        // [5-30]: sender[0-25]
-
         uint8 messageId = uint8(payload[32]);
 
         uint16 sourceChainId = (uint16(uint8(payload[33])) << 8) |
@@ -236,36 +250,22 @@ contract MessageBridge is Ownable {
         uint16 destinationChainId = (uint16(uint8(payload[35])) << 8) |
             uint16(uint8(payload[36]));
 
-        // Extract sender (26 bytes from chunk0[5-30], 6 bytes from chunk1[0-5])
+        // Extract sender - contiguous 32 bytes starting at byte 37
         bytes32 sender;
         assembly {
             let ptr := add(payload, 32) // skip length prefix
-
-            // chunk0 starts at ptr + 32 (after txId)
-            // sender starts at chunk0 + 5 = ptr + 32 + 5 = ptr + 37
-            let senderStart := add(ptr, 37)
-
-            // Load 32 bytes starting at sender position
-            let part1 := mload(senderStart) // contains sender[0-25] + 6 bytes of garbage
-
-            // chunk1 starts at ptr + 32 + 31 = ptr + 63
-            // sender[26-31] is at chunk1[0-5]
-            let part2 := mload(add(ptr, 63)) // contains sender[26-31] in first 6 bytes
-
-            // Combine: high 26 bytes from part1, low 6 bytes from part2
-            sender := or(
-                and(
-                    part1,
-                    0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000
-                ),
-                shr(208, part2) // shift right 208 bits (26 bytes) to move 6 bytes to low position
-            )
+            // sender starts at byte 37 = ptr + 37
+            sender := mload(add(ptr, 37))
         }
 
-        // Value is in chunk2 at position 6
-        // chunk2 starts at byte 32 + 31 + 31 = 94
-        // value is at 94 + 6 = 100
-        uint8 value = uint8(payload[100]);
+        // Verify sender is registered for this source chain
+        require(
+            registeredSenders[sourceChainId][sender],
+            "Invalid sender: not registered"
+        );
+
+        // Value is at byte 74 (after txId + messageId + chains + sender + padding)
+        uint8 value = uint8(payload[74]);
 
         currentValue = value;
         emit ValueReceived(sourceChainId, sender, value);
