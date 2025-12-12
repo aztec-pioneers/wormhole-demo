@@ -8,20 +8,46 @@ use nodash::ArrayExtensions;
 
 /// Wormhole Payload ID for simple value messages
 pub global WORMHOLE_MESSAGE_ID: u8 = 99;
-pub global VAA_BODY_START: u32 = 6 + 66; // hardcoded as 1 signature
-pub global VAA_MAX_LENGTH: u32 = 2000; // max VAA length in Wormhole spec
-pub global VAA_BODY_MAX_LENGTH: u32 = 1860; // max body length in Wormhole VAA spec
-// we know the actual payload length we will always observe
-pub global MESSAGE_PAYLOAD_LENGTH: u32 = 38; 
-pub global MESSAGE_NULLIFIER_LENGTH: u32 = VAA_BODY_START + MESSAGE_PAYLOAD_LENGTH;
-pub global MESSAGE_NULLIFIER_PACKED_LENGTH: u32 = 4; // ceil(MESSAGE_NULLIFIER_LENGTH / 31)
 
+// VAA structure offsets (hardcoded for 1 signature)
+pub global VAA_HEADER_SIZE: u32 = 6;        // version(1) + guardian_set(4) + num_sigs(1)
+pub global VAA_SIGNATURE_SIZE: u32 = 66;    // guardian_index(1) + signature(64) + recovery(1)
+pub global VAA_ENVELOPE_START: u32 = VAA_HEADER_SIZE + VAA_SIGNATURE_SIZE; // = 72
+pub global VAA_ENVELOPE_SIZE: u32 = 51;     // timestamp(4) + nonce(4) + emitter_chain(2) + emitter_addr(32) + sequence(8) + consistency(1)
+pub global VAA_PAYLOAD_START: u32 = VAA_ENVELOPE_START + VAA_ENVELOPE_SIZE; // = 123
+
+pub global VAA_MAX_LENGTH: u32 = 2000;      // max VAA length in Wormhole spec
+pub global VAA_BODY_MAX_LENGTH: u32 = 1860; // max body length in Wormhole VAA spec
+
+// Message payload structure (38 bytes)
+pub global MESSAGE_PAYLOAD_LENGTH: u32 = 38;
+pub global MESSAGE_NULLIFIER_LENGTH: u32 = VAA_ENVELOPE_SIZE + MESSAGE_PAYLOAD_LENGTH; // 51 + 38 = 89
+pub global MESSAGE_NULLIFIER_PACKED_LENGTH: u32 = 3; // ceil(89 / 31) = 3
+
+/// Decoded VAA envelope (excludes header and signatures)
+pub struct DecodedVAAEnvelope {
+    pub timestamp: u32,
+    pub nonce: u32,
+    pub emitter_chain_id: u16,
+    pub emitter_address: [u8; 32],
+    pub sequence: u64,
+    pub consistency_level: u8,
+}
+
+/// Decoded message payload
 pub struct DecodedVAAPayload {
-    pub value: u8,
+    pub message_id: u8,
     pub source_chain_id: u16,
     pub destination_chain_id: u16,
-    pub sender: Field,
-    pub nullifier: Field
+    pub sender: [u8; 32],
+    pub value: u8,
+}
+
+/// Full decoded VAA (envelope + payload + nullifier)
+pub struct DecodedVAA {
+    pub envelope: DecodedVAAEnvelope,
+    pub payload: DecodedVAAPayload,
+    pub nullifier: Field,
 }
 
 

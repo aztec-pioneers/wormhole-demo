@@ -16,8 +16,8 @@ pub contract MessageBridge {
     use crate::{
         config::Config,
         utils::{
-            vaa::{encode_message_payload, decode_message_payload},
-            address_to_bytes32, DecodedVAAPayload, WORMHOLE_MESSAGE_ID
+            vaa::{encode_message_payload, decode_vaa},
+            address_to_bytes32,
         },
     };
     use wormhole::Wormhole;
@@ -155,25 +155,37 @@ pub contract MessageBridge {
         // 1. verify the VAA through Wormhole
         let config = storage.config.read();
         Wormhole::at(config.wormhole_address).verify_vaa(vaa, length).call(&mut context);
-        // 2. extract and decode the paylod
-        let decoded_message = decode_message_payload(vaa);
+
+        // 2. decode the VAA (body + payload)
+        let decoded = decode_vaa(vaa);
+
         // 3. validate destination chain is this chain
         assert(
-            decoded_message.destination_chain_id == config.chain_id,
+            decoded.payload.destination_chain_id == config.chain_id,
             "Invalid destination chain ID"
         );
-        // 4. validate emitter for source chain
+
+        // 4. validate emitter from VAA envelope (not sender from payload)
+        // The emitter is the contract that called wormhole.publishMessage on the source chain
+        let mut emitter_truncated = [0; 31];
+        for i in 0..31 {
+            emitter_truncated[i] = decoded.envelope.emitter_address[i];
+        }
+        let emitter_field = Field::from_le_bytes(emitter_truncated);
+
         let is_registered_emitter = storage.registered_emitters
-            .at(decoded_message.source_chain_id)
-            .at(decoded_message.sender)
+            .at(decoded.envelope.emitter_chain_id)
+            .at(emitter_field)
             .read();
         assert(is_registered_emitter, "Emitter not registered");
+
         // 5. emit the nullifier to prevent replays
         // note: will fail if nullifier has already been emitted
-        context.push_nullifier(decoded_message.nullifier);
+        context.push_nullifier(decoded.nullifier);
+
         // 6. update state with received value
         MessageBridge::at(context.this_address())
-            ._update_value(decoded_message.value)
+            ._update_value(decoded.payload.value)
             .enqueue(&mut context);
     }
 

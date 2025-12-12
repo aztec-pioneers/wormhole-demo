@@ -85,7 +85,7 @@ async function configureAztecBridge() {
     console.log("\n=== Configuring Aztec MessageBridge ===");
     console.log(`Aztec Bridge: ${AZTEC_BRIDGE_ADDRESS}`);
     console.log(`EVM Chain ID: ${ARBITRUM_SEPOLIA_CHAIN_ID}`);
-    console.log(`EVM Wormhole (emitter): ${EVM_WORMHOLE_ADDRESS}`);
+    console.log(`EVM Bridge (emitter): ${EVM_BRIDGE_ADDRESS}`);
 
     const node = createAztecNodeClient(AZTEC_NODE_URL!);
     const wallet = await TestWallet.create(node, getTestnetPxeConfig());
@@ -104,8 +104,8 @@ async function configureAztecBridge() {
         wallet
     );
 
-    // Register the EVM Wormhole contract as the emitter (not the bridge)
-    const evmEmitterBytes = hexToBytes32Array(EVM_WORMHOLE_ADDRESS!);
+    // Register the EVM Bridge as the emitter (the contract that calls wormhole.publishMessage)
+    const evmEmitterBytes = hexToBytes32Array(EVM_BRIDGE_ADDRESS!);
 
     // Check ownership
     const owner = await bridge.methods.get_owner().simulate({ from: adminAddress });
