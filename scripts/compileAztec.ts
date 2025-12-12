@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { dirname, join } from "path";
-import { mkdir } from "fs/promises";
 import { fileURLToPath } from "url";
 import { execCommand, copyFileWithLog, replaceInFile } from "./utils/cmd.js";
 
@@ -9,10 +8,10 @@ const __dirname = dirname(__filename);
 
 async function main() {
     try {
-        const scriptDir = __dirname;
-        const packageDir = join(scriptDir, "..");
-        console.log(`Working in package directory: ${packageDir}...`);
-        process.chdir(packageDir);
+        const rootDir = join(__dirname, "..");
+        const aztecDir = join(rootDir, "packages/aztec");
+        console.log(`Working in aztec directory: ${aztecDir}...`);
+        process.chdir(aztecDir);
 
         // Remove old artifacts
         console.log("Cleaning old artifacts...");
@@ -23,17 +22,17 @@ async function main() {
         await execCommand("aztec-nargo", ["compile"]);
 
         console.log("Post-processing contract artifacts...");
-        await execCommand("aztec-postprocess-contract", [], packageDir);
+        await execCommand("aztec-postprocess-contract", [], aztecDir);
 
         // Generate TypeScript bindings
         console.log("Generating TypeScript bindings...");
         // Prepend ~/.aztec/bin to PATH to use global aztec CLI instead of node_modules version
         const aztecBinPath = process.env.HOME + "/.aztec/bin";
         const newPath = aztecBinPath + ":" + process.env.PATH;
-        await execCommand("aztec", ["codegen", "target", "--outdir", "target", "-f"], packageDir, { PATH: newPath });
+        await execCommand("aztec", ["codegen", "target", "--outdir", "target", "-f"], aztecDir, { PATH: newPath });
 
         // Move artifacts
-        const artifactsDir = join(packageDir, "ts", "artifacts");
+        const artifactsDir = join(aztecDir, "ts", "artifacts");
         console.log("Moving artifacts...");
         await copyFileWithLog(
             "./target/MessageBridge.ts",
@@ -66,9 +65,9 @@ async function main() {
             "./Wormhole.json"
         );
 
-        console.log("✅ Compilation completed successfully!");
+        console.log("Compilation completed successfully!");
     } catch (error) {
-        console.error("❌ Compilation failed:", error);
+        console.error("Compilation failed:", error);
         process.exit(1);
     }
 }

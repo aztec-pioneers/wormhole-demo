@@ -6,14 +6,14 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const ROOT_ENV_PATH = join(__dirname, "../../../../.env");
+const ROOT_ENV_PATH = join(__dirname, "../../.env");
 
 export function loadRootEnv() {
     config({ path: ROOT_ENV_PATH });
 }
 
 export function updateRootEnv(updates: Record<string, string>) {
-    const rootEnvPath = join(__dirname, "../../../../.env");
+    const rootEnvPath = join(__dirname, "../../.env");
     let envContent = "";
 
     if (existsSync(rootEnvPath)) {

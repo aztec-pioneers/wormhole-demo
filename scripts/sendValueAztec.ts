@@ -5,9 +5,9 @@ loadRootEnv();
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { TestWallet } from "@aztec/test-wallet/server";
-import { MessageBridgeContract, MessageBridgeContractArtifact, WormholeContractArtifact } from "../ts/artifacts";
+import { MessageBridgeContract, MessageBridgeContractArtifact, WormholeContractArtifact } from "@aztec-wormhole-demo/aztec-contracts/artifacts";
 import { loadAccount, getTestnetPxeConfig, testnetSendWaitOpts } from "./utils/aztec";
-import { ARBITRUM_SEPOLIA_CHAIN_ID } from "../ts/constants";
+import { ARBITRUM_SEPOLIA_CHAIN_ID } from "@aztec-wormhole-demo/aztec-contracts/constants";
 import { Fr } from "@aztec/aztec.js/fields";
 
 const { AZTEC_NODE_URL, AZTEC_BRIDGE_ADDRESS, AZTEC_WORMHOLE_ADDRESS } = process.env;

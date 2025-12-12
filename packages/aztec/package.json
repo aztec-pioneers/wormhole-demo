@@ -46,20 +46,7 @@
     "typescript": "^5.7.2",
     "viem": "^2.21.53"
   },
-  "scripts": {
-    "build": "tsx ./scripts/compile.ts",
-    "setup:account": "tsx ./scripts/setupAccounts.ts",
-    "setup:relayerAccount": "tsx ./scripts/relayerAccount.ts",
-    "setup:deploy": "tsx ./scripts/deploy.ts",
-    "setup:configure": "tsx ./scripts/configure.ts",
-    "deploy:evm": "tsx ./scripts/deployEvm.ts",
-    "send": "tsx ./scripts/sendValue.ts",
-    "send:evm": "tsx ./scripts/sendValueEvm.ts",
-    "read": "tsx ./scripts/readValues.ts",
-    "check:emitters": "tsx ./scripts/check-emitters.ts"
-  },
   "devDependencies": {
-    "tsup": "^8.3.5",
-    "tsx": "^4.19.2"
+    "tsup": "^8.3.5"
   }
 }

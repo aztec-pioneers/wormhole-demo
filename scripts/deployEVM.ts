@@ -10,7 +10,7 @@ import { updateRootEnv } from "./utils/env";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const EVM_DIR = join(__dirname, "../../evm");
+const EVM_DIR = join(__dirname, "../packages/evm");
 
 const {
     EVM_PRIVATE_KEY,

@@ -5,7 +5,7 @@ loadRootEnv();
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { TestWallet } from "@aztec/test-wallet/server";
-import { MessageBridgeContract, MessageBridgeContractArtifact } from "../ts/artifacts";
+import { MessageBridgeContract, MessageBridgeContractArtifact } from "@aztec-wormhole-demo/aztec-contracts/artifacts";
 import { loadAccount, getTestnetPxeConfig } from "./utils/aztec";
 import { createEvmClients, MESSAGE_BRIDGE_ABI } from "./utils/evm";
 import { getAddress } from "viem";

@@ -6,11 +6,11 @@ import { getAddress } from "viem";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { TestWallet } from "@aztec/test-wallet/server";
-import { MessageBridgeContract, MessageBridgeContractArtifact } from "../ts/artifacts";
+import { MessageBridgeContract, MessageBridgeContractArtifact } from "@aztec-wormhole-demo/aztec-contracts/artifacts";
 import { loadAccount, getTestnetPxeConfig, testnetSendWaitOpts } from "./utils/aztec";
 import { addressToBytes32, hexToBytes32Array } from "./utils/bytes";
 import { createEvmClients, MESSAGE_BRIDGE_ABI } from "./utils/evm";
-import { AZTEC_WORMHOLE_CHAIN_ID, ARBITRUM_SEPOLIA_CHAIN_ID } from "../ts/constants";
+import { AZTEC_WORMHOLE_CHAIN_ID, ARBITRUM_SEPOLIA_CHAIN_ID } from "@aztec-wormhole-demo/aztec-contracts/constants";
 
 const {
     AZTEC_NODE_URL,

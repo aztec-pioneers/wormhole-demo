@@ -10,7 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Load ABI from forge build output
 const messageBridgeJson = JSON.parse(
     readFileSync(
-        join(__dirname, "../../../evm/out/MessageBridge.sol/MessageBridge.json"),
+        join(__dirname, "../../packages/evm/out/MessageBridge.sol/MessageBridge.json"),
         "utf-8"
     )
 );

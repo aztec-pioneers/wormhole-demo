@@ -37,7 +37,7 @@ func NewVerificationServiceClient(logger *zap.Logger, baseURL string) *Verificat
 	return &VerificationServiceClient{
 		baseURL: strings.TrimSuffix(baseURL, "/"),
 		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
+			Timeout: 300 * time.Second,
 		},
 		logger: logger.With(zap.String("component", "VerificationServiceClient")),
 	}

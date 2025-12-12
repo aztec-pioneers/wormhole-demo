@@ -3,7 +3,7 @@ import { SendInteractionOptions, WaitOpts } from "@aztec/aztec.js/contracts";
 import { AztecNode } from "@aztec/aztec.js/node";
 import { BaseWallet } from "@aztec/aztec.js/wallet";
 import { PXEConfig } from "@aztec/pxe/config";
-import { getPriorityFeeOptions, getSponsoredPaymentMethod } from "../../ts/fees";
+import { getPriorityFeeOptions, getSponsoredPaymentMethod } from "@aztec-wormhole-demo/aztec-contracts/fees";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { Fr } from "@aztec/aztec.js/fields";
 

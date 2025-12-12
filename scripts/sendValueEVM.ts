@@ -4,7 +4,7 @@ loadRootEnv();
 
 import { createEvmClients, MESSAGE_BRIDGE_ABI } from "./utils/evm";
 import { getAddress } from "viem";
-import { AZTEC_WORMHOLE_CHAIN_ID } from "../ts/constants";
+import { AZTEC_WORMHOLE_CHAIN_ID } from "@aztec-wormhole-demo/aztec-contracts/constants";
 
 const { ARBITRUM_RPC_URL, EVM_PRIVATE_KEY, EVM_BRIDGE_ADDRESS } = process.env;
 

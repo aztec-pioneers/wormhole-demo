@@ -2,35 +2,37 @@
   "name": "aztec-wormhole-demo",
   "version": "1.0.0",
   "description": "Simplified cross-chain messaging demo between Aztec and EVM using Wormhole",
-  "private": true,
-  "scripts": {
-    "build": "pnpm run build:aztec && pnpm run build:evm",
-    "build:aztec": "pnpm --filter @aztec-wormhole-demo/aztec-contracts build",
-    "build:evm": "pnpm --filter @aztec-wormhole-demo/evm build",
-    "build:relayer": "cd packages/relayer && go build -o bin/wormhole-relayer .",
-    "build:vaa-service": "docker build -f packages/aztec/ts/vaaService/Dockerfile -t wormhole-vaa-service .",
-    "vaa-service": "docker run --rm -p 3000:3000 --env-file packages/aztec/.env wormhole-vaa-service",
-    "deploy:evm": "pnpm --filter @aztec-wormhole-demo/aztec-contracts deploy:evm",
-    "deploy:aztec": "pnpm --filter @aztec-wormhole-demo/aztec-contracts setup:deploy",
-    "configure": "pnpm --filter @aztec-wormhole-demo/aztec-contracts setup:configure",
-    "send-to-aztec": "pnpm --filter @aztec-wormhole-demo/aztec-contracts send:evm",
-    "send-to-evm": "pnpm --filter @aztec-wormhole-demo/aztec-contracts send",
-    "read": "pnpm --filter @aztec-wormhole-demo/aztec-contracts read",
-    "check:emitters": "pnpm --filter @aztec-wormhole-demo/aztec-contracts check:emitters",
-    "sandbox": "docker compose up"
-  },
-  "packageManager": "pnpm@9.15.4",
-  "keywords": [
-    "aztec",
-    "wormhole",
-    "cross-chain",
-    "bridge",
-    "evm",
-    "arbitrum"
+  "type": "module",
+  "authors": [
+    "Aztec Pioneers <https://github.com/aztec-pioneers>",
+    "Nethermind <https://github.com/nethermindeth>"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yourusername/wormhole-demo.git"
-  }
+    "url": "git+https://github.com/aztec-pioneers/wormhole-demo.git"
+  },
+  "scripts": {
+    "postinstall": "git submodule update --init --recursive && cd packages/evm && forge install --no-commit",
+    "build": "pnpm run build:aztec && pnpm run build:evm",
+    "build:aztec": "tsx scripts/compile-aztec.ts",
+    "build:evm": "cd packages/evm && forge build --skip test",
+    "create-relayer-account": "tsx scripts/setupRelayerAccount.ts",
+    "deploy:evm": "tsx scripts/deployEVM.ts",
+    "deploy:aztec": "tsx scripts/deployAztec.ts",
+    "deploy": "pnpm run deploy:evm && pnpm run deploy:aztec",
+    "register-emitters": "tsx scripts/registerEmitters.ts",
+    "send:aztec": "tsx scripts/sendValueAztec.ts",
+    "send:evm": "tsx scripts/sendValueEVM.ts",
+    "read:values": "tsx scripts/readValues.ts",
+    "read:emitters": "tsx scripts/readEmitters.ts",
+    "relayer": "docker compose up"
+  },
+  "dependencies": {
+    "@aztec-wormhole-demo/aztec-contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  },
+  "packageManager": "pnpm@9.15.4"
 }
