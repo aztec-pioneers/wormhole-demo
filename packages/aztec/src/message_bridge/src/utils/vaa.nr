@@ -8,9 +8,9 @@ use crate::utils::{
     MESSAGE_NULLIFIER_PACKED_LENGTH,
     DecodedVAAEnvelope,
     DecodedVAAPayload,
-    pack_bytes,
     u16_to_u8,
 };
+use nodash::pack_bytes;
 
 pub struct DecodedVAA {
     pub envelope: DecodedVAAEnvelope,
