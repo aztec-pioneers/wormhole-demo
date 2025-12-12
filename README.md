@@ -57,7 +57,7 @@ pnpm create-relayer-account
 ### 5. Deploy the bridge contracts
 The message bridges on each chain act both as emitters and receivers for wormhole messages, so we deploy one contract per chain. The bridge contract addresses will automatically be updated at the end of this script.
 ```bash
-pnpm deploy
+pnpm deploy:all
 ```
 
 ### 6. Register emitters for each chain

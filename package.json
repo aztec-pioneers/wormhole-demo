@@ -20,7 +20,7 @@
     "create-relayer-account": "tsx scripts/setupRelayerAccount.ts",
     "deploy:evm": "tsx scripts/deployEVM.ts",
     "deploy:aztec": "tsx scripts/deployAztec.ts",
-    "deploy": "pnpm run deploy:evm && pnpm run deploy:aztec",
+    "deploy:all": "pnpm run deploy:evm && pnpm run deploy:aztec",
     "register-emitters": "tsx scripts/registerEmitters.ts",
     "send:aztec": "tsx scripts/sendValueAztec.ts",
     "send:evm": "tsx scripts/sendValueEVM.ts",
