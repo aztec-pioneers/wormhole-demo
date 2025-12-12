@@ -1,4 +1,4 @@
-# Wormhole Demo - Build & Deploy
+# Aztec Wormhole Demo
 Simple showcase of Aztec<>EVM cross chain communication
 
 * Set a u128 value on Arbitrum Sepolia from Aztec Devnet with private or public broadcasting
