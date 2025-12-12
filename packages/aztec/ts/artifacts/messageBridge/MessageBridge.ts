@@ -123,6 +123,9 @@ current_value: {
     /** get_owner() */
     get_owner: (() => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
+    /** get_registered_emitter(chain_id: integer) */
+    get_registered_emitter: ((chain_id: (bigint | number)) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
+
     /** is_emitter_registered(chain_id: integer, emitter_address: array) */
     is_emitter_registered: ((chain_id: (bigint | number), emitter_address: (bigint | number)[]) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 

@@ -49,22 +49,24 @@ async function checkEvmBridge(): Promise<CheckResult> {
     // The emitter should be the Aztec Wormhole contract, not the bridge
     const expectedEmitter = addressToBytes32(AZTEC_WORMHOLE_ADDRESS!);
 
-    // New: nested mapping (chainId => emitterAddress => bool)
-    const isRegistered = await publicClient.readContract({
+    // Get registered emitter for this chain (one emitter per chain)
+    const registeredEmitter = await publicClient.readContract({
         address: evmBridgeAddress,
         abi: MESSAGE_BRIDGE_ABI,
         functionName: "registeredEmitters",
-        args: [AZTEC_WORMHOLE_CHAIN_ID, expectedEmitter],
-    }) as boolean;
+        args: [AZTEC_WORMHOLE_CHAIN_ID],
+    }) as `0x${string}`;
+
+    const isRegistered = registeredEmitter.toLowerCase() === expectedEmitter.toLowerCase();
 
     console.log(`  Expected: ${expectedEmitter}`);
-    console.log(`  Registered: ${isRegistered}`);
+    console.log(`  Registered: ${registeredEmitter}`);
     console.log(`  Status: ${isRegistered ? "✅ REGISTERED" : "❌ NOT REGISTERED"}`);
 
     return {
         side: "EVM",
         expectedEmitter,
-        registeredEmitter: isRegistered ? expectedEmitter : "0x0000000000000000000000000000000000000000000000000000000000000000",
+        registeredEmitter,
         isRegistered,
     };
 }

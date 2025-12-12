@@ -32,8 +32,8 @@ pub contract MessageBridge {
         owner: PublicMutable<AztecAddress, Context>,
 
         // Registered emitters
-        // chain id => source chain address => is_registered
-        registered_emitters: Map<u16, Map<Field, PublicImmutable<bool, Context>, Context>, Context>,
+        // chain id => emitter address (one emitter per chain)
+        registered_emitters: Map<u16, PublicMutable<[u8; 32], Context>, Context>,
 
         // currently stored value
         current_value: PublicMutable<u128, Context>,
@@ -68,18 +68,10 @@ pub contract MessageBridge {
         let owner = storage.owner.read();
         assert(owner == context.msg_sender().unwrap(), "Caller is not owner");
 
-        // 2. pack eth address into a field
-        let  mut emitter_address_truncated = [0; 31];
-        for i in 0..31 {
-            emitter_address_truncated[i] = emitter_address[i + 1];
-        }
-        let emitter_address_field = Field::from_be_bytes(emitter_address_truncated);
-
-        // 3. register emitter
+        // 2. register emitter (store full 32-byte address)
         storage.registered_emitters
             .at(source_chain_id)
-            .at(emitter_address_field)
-            .initialize(true);
+            .write(emitter_address);
     }
 
     // ============================================================================
@@ -153,26 +145,34 @@ pub contract MessageBridge {
             "Invalid destination chain ID"
         );
 
-        // 4. validate emitter from VAA envelope (not sender from payload)
-        let is_registered_emitter = storage.registered_emitters
-            .at(vaa_envelope.emitter_chain_id)
-            .at(vaa_envelope.emitter_as_field())
-            .read();
-        assert(is_registered_emitter, "Emitter not registered");
-
-        // 5. emit the nullifier to prevent replays
+        // 4. emit the nullifier to prevent replays
         // note: will fail if nullifier has already been emitted
         context.push_nullifier(vaa_nullifier);
 
-        // 6. update state with received value
+        // 5. validate emitter and update state (done in public to read public storage)
         MessageBridge::at(context.this_address())
-            ._update_value(vaa_payload.value)
+            ._validate_emitter_and_update_value(
+                vaa_envelope.emitter_chain_id,
+                vaa_envelope.emitter_address,
+                vaa_payload.value,
+            )
             .enqueue(&mut context);
     }
 
     #[external("public")]
     #[internal]
-    fn _update_value(value: u128) {
+    fn _validate_emitter_and_update_value(
+        emitter_chain_id: u16,
+        emitter_address: [u8; 32],
+        value: u128,
+    ) {
+        // Validate emitter from VAA envelope (not sender from payload)
+        let registered_emitter = storage.registered_emitters
+            .at(emitter_chain_id)
+            .read();
+        assert(registered_emitter == emitter_address, "Emitter not registered");
+
+        // Update state with received value
         storage.current_value.write(value);
     }
 
@@ -192,16 +192,16 @@ pub contract MessageBridge {
 
     #[external("utility")]
     unconstrained fn is_emitter_registered(chain_id: u16, emitter_address: [u8; 32]) -> bool {
-        // pack eth address into a field (take bytes 1-31 to preserve EVM address suffix)
-        let mut emitter_address_truncated = [0; 31];
-        for i in 0..31 {
-            emitter_address_truncated[i] = emitter_address[i + 1];
-        }
-        let emitter_address_field = Field::from_be_bytes(emitter_address_truncated);
+        let registered_emitter = storage.registered_emitters
+            .at(chain_id)
+            .read();
+        registered_emitter == emitter_address
+    }
 
+    #[external("utility")]
+    unconstrained fn get_registered_emitter(chain_id: u16) -> [u8; 32] {
         storage.registered_emitters
             .at(chain_id)
-            .at(emitter_address_field)
             .read()
     }
 

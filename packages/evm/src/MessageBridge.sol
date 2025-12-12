@@ -37,8 +37,8 @@ contract MessageBridge is Ownable {
     // Consistency level for outbound messages
     uint8 public immutable FINALITY;
 
-    // Registered emitters: remoteChainId => emitterAddress => bool
-    mapping(uint16 => mapping(bytes32 => bool)) public registeredEmitters;
+    // Registered emitters: remoteChainId => emitterAddress (one emitter per chain)
+    mapping(uint16 => bytes32) public registeredEmitters;
 
     // Processed messages for replay protection: txId => value
     // Non-zero value means processed
@@ -108,7 +108,7 @@ contract MessageBridge is Ownable {
      */
     function registerEmitter(uint16 remoteChainId, bytes32 emitterAddress) external onlyOwner {
         require(emitterAddress != bytes32(0), "Emitter cannot be zero");
-        registeredEmitters[remoteChainId][emitterAddress] = true;
+        registeredEmitters[remoteChainId] = emitterAddress;
         emit EmitterRegistered(remoteChainId, emitterAddress);
     }
 
@@ -224,7 +224,7 @@ contract MessageBridge is Ownable {
     function _verifyAuthorizedEmitter(
         IWormhole.VM memory vm
     ) internal view returns (bool) {
-        return registeredEmitters[vm.emitterChainId][vm.emitterAddress];
+        return registeredEmitters[vm.emitterChainId] == vm.emitterAddress;
     }
 
     // ============================================================================

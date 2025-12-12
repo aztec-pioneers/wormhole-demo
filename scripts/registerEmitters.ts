@@ -42,15 +42,15 @@ async function configureEvmBridge() {
     // Register the Aztec Wormhole contract as the emitter (not the bridge)
     const aztecEmitterBytes32 = addressToBytes32(AZTEC_WORMHOLE_ADDRESS!);
 
-    // Check if already registered (nested mapping: chainId => emitterAddress => bool)
-    const isRegistered = await publicClient.readContract({
+    // Check if already registered (one emitter per chain)
+    const registeredEmitter = await publicClient.readContract({
         address: evmBridgeAddress,
         abi: MESSAGE_BRIDGE_ABI,
         functionName: "registeredEmitters",
-        args: [AZTEC_WORMHOLE_CHAIN_ID, aztecEmitterBytes32],
-    }) as boolean;
+        args: [AZTEC_WORMHOLE_CHAIN_ID],
+    }) as `0x${string}`;
 
-    if (isRegistered) {
+    if (registeredEmitter.toLowerCase() === aztecEmitterBytes32.toLowerCase()) {
         console.log("Aztec emitter already registered on EVM bridge");
         return;
     }
