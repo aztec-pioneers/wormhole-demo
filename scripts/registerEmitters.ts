@@ -78,7 +78,7 @@ async function configureEvmBridge() {
     console.log(`Transaction submitted: ${hash}`);
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
-    console.log("EVM bridge configured successfully!");
+    console.log("Aztec emitter registered on EVM bridge!");
 }
 
 async function configureAztecBridge() {
@@ -122,7 +122,7 @@ async function configureAztecBridge() {
         .send(opts.send)
         .wait(opts.wait);
 
-    console.log("Aztec bridge configured successfully!");
+    console.log("EVM emitter registered on Aztec bridge!");
 }
 
 async function main() {
@@ -134,11 +134,11 @@ async function main() {
     await configureEvmBridge();
     await configureAztecBridge();
 
-    console.log("\n=== Configuration Complete ===");
-    console.log("Both bridges are now configured to trust each other.");
+    console.log("\n=== Emitter Registration Complete ===");
+    console.log("Both bridges are now registered to trust each other.");
 }
 
 main().catch((err) => {
-    console.error("Configuration failed:", err);
+    console.error("Emitter registration failed:", err);
     process.exit(1);
 });

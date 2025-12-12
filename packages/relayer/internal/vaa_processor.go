@@ -47,7 +47,7 @@ func NewDefaultVAAProcessor(logger *zap.Logger, config VAAProcessorConfig, submi
 
 func (p *DefaultVAAProcessor) ProcessVAA(ctx context.Context, vaaData VAAData) (string, error) {
 	// Create a context with timeout for processing operations
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second) // Increased timeout for HTTP calls
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute) // 5 minute timeout for Aztec VAA verification
 	defer cancel()
 
 	// Log VAAs from Aztec (54 or 56) or Arbitrum Sepolia (10003) at INFO level before filtering
