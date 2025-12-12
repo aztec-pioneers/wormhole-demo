@@ -69,8 +69,7 @@ const main = async () => {
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
 
-    // Parse the ValueSent event to get the sequence number
-    const valueSentTopic = "0x" + Buffer.from("ValueSent(address,uint16,uint8,uint64)").toString("hex");
+    // Check for ValueSent event from the bridge
     const valueSentEvent = receipt.logs.find(log =>
         log.address.toLowerCase() === bridgeAddress.toLowerCase()
     );

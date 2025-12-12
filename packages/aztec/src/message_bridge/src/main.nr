@@ -15,10 +15,7 @@ pub contract MessageBridge {
     };
     use crate::{
         config::Config,
-        utils::{
-            vaa::{encode_message_payload, decode_vaa},
-            address_to_bytes32,
-        },
+        utils::vaa::{encode_message_payload, decode_vaa},
     };
     use wormhole::Wormhole;
 
@@ -99,13 +96,8 @@ pub contract MessageBridge {
         let caller = context.msg_sender().unwrap();
         let config = storage.config.read();
 
-        // 1. Encode the message payload
-        let wormhole_payload = encode_message_payload(
-            address_to_bytes32(caller),
-            value,
-            config.chain_id,
-            destination_chain_id,
-        );
+        // 1. Encode the message payload (just destination_chain_id + value)
+        let wormhole_payload = encode_message_payload(value, destination_chain_id);
 
         // 2. Publish message publicly through Wormhole
         let _ = Wormhole::at(config.wormhole_address).publish_message_in_public(
@@ -127,15 +119,11 @@ pub contract MessageBridge {
         // no auth checks
         let caller = context.msg_sender().unwrap();
         let config = storage.config.read();
-        // 1. Encode the message payload
-        let wormhole_payload = encode_message_payload(
-            address_to_bytes32(caller),
-            value,
-            config.chain_id,
-            destination_chain_id,
-        );
 
-        // Publish message publicly through Wormhole
+        // 1. Encode the message payload (just destination_chain_id + value)
+        let wormhole_payload = encode_message_payload(value, destination_chain_id);
+
+        // 2. Publish message privately through Wormhole
         let _ = Wormhole::at(config.wormhole_address).publish_message_in_private(
             0, // nonce
             wormhole_payload,

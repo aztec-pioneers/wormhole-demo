@@ -1,13 +1,6 @@
 pub mod vaa;
 
-use aztec::protocol_types::{
-    address::AztecAddress,
-    traits::ToField,
-};
 use nodash::ArrayExtensions;
-
-/// Wormhole Payload ID for simple value messages
-pub global WORMHOLE_MESSAGE_ID: u8 = 99;
 
 // VAA structure offsets (hardcoded for 1 signature)
 pub global VAA_HEADER_SIZE: u32 = 6;        // version(1) + guardian_set(4) + num_sigs(1)
@@ -19,10 +12,10 @@ pub global VAA_PAYLOAD_START: u32 = VAA_ENVELOPE_START + VAA_ENVELOPE_SIZE; // =
 pub global VAA_MAX_LENGTH: u32 = 2000;      // max VAA length in Wormhole spec
 pub global VAA_BODY_MAX_LENGTH: u32 = 1860; // max body length in Wormhole VAA spec
 
-// Message payload structure (38 bytes)
-pub global MESSAGE_PAYLOAD_LENGTH: u32 = 38;
-pub global MESSAGE_NULLIFIER_LENGTH: u32 = VAA_ENVELOPE_SIZE + MESSAGE_PAYLOAD_LENGTH; // 51 + 38 = 89
-pub global MESSAGE_NULLIFIER_PACKED_LENGTH: u32 = 3; // ceil(89 / 31) = 3
+// Message payload structure (3 bytes): destinationChainId (2) + value (1)
+pub global MESSAGE_PAYLOAD_LENGTH: u32 = 3;
+pub global MESSAGE_NULLIFIER_LENGTH: u32 = VAA_ENVELOPE_SIZE + MESSAGE_PAYLOAD_LENGTH; // 51 + 3 = 54
+pub global MESSAGE_NULLIFIER_PACKED_LENGTH: u32 = 2; // ceil(54 / 31) = 2
 
 /// Decoded VAA envelope (excludes header and signatures)
 pub struct DecodedVAAEnvelope {
@@ -46,18 +39,10 @@ impl DecodedVAAEnvelope {
     }
 }
 
-/// Decoded message payload
+/// Decoded message payload (3 bytes)
 pub struct DecodedVAAPayload {
-    pub message_id: u8,
-    pub source_chain_id: u16,
     pub destination_chain_id: u16,
-    pub sender: [u8; 32],
     pub value: u8,
-}
-
-
-pub fn address_to_bytes32(addr: AztecAddress) -> [u8; 32] {
-    addr.to_field().to_be_bytes()
 }
 
 pub fn u16_to_u8(value: u16) -> [u8; 2] {

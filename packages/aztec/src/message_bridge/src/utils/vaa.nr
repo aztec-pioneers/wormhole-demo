@@ -1,7 +1,6 @@
 use keccak256::keccak256;
 use poseidon::poseidon2::Poseidon2;
 use crate::utils::{
-    WORMHOLE_MESSAGE_ID,
     VAA_MAX_LENGTH,
     VAA_ENVELOPE_START,
     VAA_PAYLOAD_START,
@@ -9,7 +8,6 @@ use crate::utils::{
     MESSAGE_NULLIFIER_PACKED_LENGTH,
     DecodedVAAEnvelope,
     DecodedVAAPayload,
-    DecodedVAA,
     pack_bytes,
     u16_to_u8
 };
@@ -104,45 +102,23 @@ pub fn decode_vaa_envelope(vaa: [u8; VAA_MAX_LENGTH]) -> DecodedVAAEnvelope {
 
 /// Parse the VAA payload (starts at byte 123 for 1 signature)
 ///
-/// Payload structure (38 bytes):
-///   Byte 0:      message_id (u8)
-///   Bytes 1-2:   source_chain_id (u16, big-endian)
-///   Bytes 3-4:   destination_chain_id (u16, big-endian)
-///   Bytes 5-36:  sender (32 bytes)
-///   Byte 37:     value (u8)
+/// Payload structure (3 bytes):
+///   Bytes 0-1:   destination_chain_id (u16, big-endian)
+///   Byte 2:      value (u8)
 pub fn decode_vaa_payload(vaa: [u8; VAA_MAX_LENGTH]) -> DecodedVAAPayload {
     let offset = VAA_PAYLOAD_START;
 
-    // message_id (1 byte)
-    let message_id = vaa[offset];
-    assert(message_id == WORMHOLE_MESSAGE_ID, "Invalid payload ID");
-
-    // source_chain_id (2 bytes, big-endian)
-    let source_chain_id = (
-        (vaa[offset + 1] as Field) * 256
-        + (vaa[offset + 2] as Field)
-    ) as u16;
-
     // destination_chain_id (2 bytes, big-endian)
     let destination_chain_id = (
-        (vaa[offset + 3] as Field) * 256
-        + (vaa[offset + 4] as Field)
+        (vaa[offset] as Field) * 256
+        + (vaa[offset + 1] as Field)
     ) as u16;
 
-    // sender (32 bytes)
-    let mut sender = [0; 32];
-    for i in 0..32 {
-        sender[i] = vaa[offset + 5 + i];
-    }
-
     // value (1 byte)
-    let value = vaa[offset + 37];
+    let value = vaa[offset + 2];
 
     DecodedVAAPayload {
-        message_id,
-        source_chain_id,
         destination_chain_id,
-        sender,
         value,
     }
 }
@@ -161,40 +137,23 @@ fn compute_vaa_nullifier(vaa: [u8; VAA_MAX_LENGTH]) -> Field {
 
 /// Encode a message payload for sending via Wormhole (Aztec -> EVM)
 ///
-/// Payload structure (38 bytes):
-///   Byte 0:      message_id (u8)
-///   Bytes 1-2:   source_chain_id (u16, big-endian)
-///   Bytes 3-4:   destination_chain_id (u16, big-endian)
-///   Bytes 5-36:  sender (32 bytes)
-///   Byte 37:     value (u8)
+/// Payload structure (3 bytes):
+///   Bytes 0-1:   destination_chain_id (u16, big-endian)
+///   Byte 2:      value (u8)
 ///
 /// Returns 8 chunks of 31 bytes for Aztec Field compatibility
 pub fn encode_message_payload(
-    sender: [u8; 32],
     value: u8,
-    source_chain_id: u16,
     destination_chain_id: u16,
 ) -> [[u8; 31]; 8] {
     let mut wormhole_payload: [[u8; 31]; 8] = [[0; 31]; 8];
 
-    let source_chain_bytes = u16_to_u8(source_chain_id);
     let destination_chain_bytes = u16_to_u8(destination_chain_id);
 
-    // Chunk 0: message_id + chains + sender[0-25]
-    wormhole_payload[0][0] = WORMHOLE_MESSAGE_ID;
-    wormhole_payload[0][1] = source_chain_bytes[0];
-    wormhole_payload[0][2] = source_chain_bytes[1];
-    wormhole_payload[0][3] = destination_chain_bytes[0];
-    wormhole_payload[0][4] = destination_chain_bytes[1];
-    for i in 0..26 {
-        wormhole_payload[0][5 + i] = sender[i];
-    }
-
-    // Chunk 1: sender[26-31] + value + padding
-    for i in 0..6 {
-        wormhole_payload[1][i] = sender[26 + i];
-    }
-    wormhole_payload[1][6] = value;
+    // Chunk 0: destination_chain_id + value + padding
+    wormhole_payload[0][0] = destination_chain_bytes[0];
+    wormhole_payload[0][1] = destination_chain_bytes[1];
+    wormhole_payload[0][2] = value;
 
     wormhole_payload
 }
