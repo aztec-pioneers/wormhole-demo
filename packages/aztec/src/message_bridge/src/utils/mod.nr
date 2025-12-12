@@ -1,7 +1,5 @@
 pub mod vaa;
 
-use nodash::ArrayExtensions;
-
 // VAA structure offsets (hardcoded for 1 signature)
 pub global VAA_HEADER_SIZE: u32 = 6;        // version(1) + guardian_set(4) + num_sigs(1)
 pub global VAA_SIGNATURE_SIZE: u32 = 66;    // guardian_index(1) + signature(64) + recovery(1)
@@ -58,16 +56,4 @@ unconstrained fn _u16_to_u8(value: u16) -> [u8; 2] {
     let high = (value >> 8) as u8;
     let low = (value & 0xFF) as u8;
     [high, low]
-}
-
-// https://github.com/olehmisar/nodash/blob/main/src/array.nr#L42C1-L50C2
-// cannot import from nodash because of private dependency
-pub fn pack_bytes<let N: u32>(bytes: [u8; N]) -> [Field; N / 31 + 1] {
-    let bytes_padded = bytes.pad_end::<(N / 31 + 1) * 31>(0);
-    let mut res = [0 as Field; N / 31 + 1];
-    for i in 0..N / 31 + 1 {
-        let chunk = bytes_padded.slice::<31>(i * 31);
-        res[i] = Field::from_le_bytes(chunk);
-    }
-    res
 }

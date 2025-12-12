@@ -104,14 +104,21 @@ pnpm read:values
 
 ## How it works
 TODO
-### Encoding on Aztec
 
-### Decoding on Aztec
+### Aztec
+#### Encoding
 
-### Encoding on EVM
+#### Decoding
 
-### Decoding on EVM
+#### Replay Protection
 
-### Relaying to Aztec
+#### Relaying
 
-### Relaying to EVM
+### EVM
+#### Encoding
+
+#### Decoding
+
+#### Replay Protection
+
+#### Relaying

@@ -15,7 +15,7 @@
   "scripts": {
     "postinstall": "git submodule update --init --recursive && cd packages/evm && forge install --no-commit",
     "build": "pnpm run build:aztec && pnpm run build:evm",
-    "build:aztec": "tsx scripts/compile-aztec.ts",
+    "build:aztec": "tsx scripts/buildAztec.ts",
     "build:evm": "cd packages/evm && forge build --skip test",
     "create-relayer-account": "tsx scripts/setupRelayerAccount.ts",
     "deploy:evm": "tsx scripts/deployEVM.ts",
