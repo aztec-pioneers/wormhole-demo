@@ -36,7 +36,7 @@ pub contract MessageBridge {
         registered_emitters: Map<u16, Map<Field, PublicImmutable<bool, Context>, Context>, Context>,
 
         // currently stored value
-        current_value: PublicMutable<u8, Context>,
+        current_value: PublicMutable<u128, Context>,
     }
 
     // ============================================================================
@@ -89,7 +89,7 @@ pub contract MessageBridge {
     #[external("public")]
     fn send_value_public(
         destination_chain_id: u16,
-        value: u8,
+        value: u128,
         fee_nonce: Field,
     ) {
         // no auth checks
@@ -113,7 +113,7 @@ pub contract MessageBridge {
     #[external("private")]
     fn send_value_private(
         destination_chain_id: u16,
-        value: u8,
+        value: u128,
         fee_nonce: Field,
     ) {
         // no auth checks
@@ -172,7 +172,7 @@ pub contract MessageBridge {
 
     #[external("public")]
     #[internal]
-    fn _update_value(value: u8) {
+    fn _update_value(value: u128) {
         storage.current_value.write(value);
     }
 
@@ -206,7 +206,7 @@ pub contract MessageBridge {
     }
 
     #[external("utility")]
-    unconstrained fn get_current_value() -> u8 {
+    unconstrained fn get_current_value() -> u128 {
         storage.current_value.read()
     }
 }

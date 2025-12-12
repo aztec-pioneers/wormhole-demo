@@ -15,11 +15,11 @@ func computeVAAKey(vaaBytes []byte) string {
 }
 
 // parseAndLogPayload parses and logs payload structure at debug level
-// Payload structure (3 bytes):
-//   Bytes 0-1: destinationChainId (big-endian)
-//   Byte 2:    value
+// Payload structure (18 bytes):
+//   Bytes 0-1:  destinationChainId (big-endian)
+//   Bytes 2-17: value (uint128, big-endian)
 func parseAndLogPayload(logger *zap.Logger, payload []byte) {
-	if len(payload) < 3 {
+	if len(payload) < 18 {
 		logger.Debug("Payload too short", zap.Int("length", len(payload)))
 		return
 	}
@@ -27,11 +27,11 @@ func parseAndLogPayload(logger *zap.Logger, payload []byte) {
 	// Parse destination chain ID (2 bytes, big-endian)
 	destinationChainID := (uint16(payload[0]) << 8) | uint16(payload[1])
 
-	// Parse value (1 byte)
-	value := payload[2]
+	// Parse value (16 bytes, big-endian) - display as hex string since Go doesn't have uint128
+	valueHex := fmt.Sprintf("0x%x", payload[2:18])
 
 	logger.Debug("Payload parsed",
 		zap.Uint16("destinationChainID", destinationChainID),
-		zap.Uint8("value", value),
+		zap.String("value", valueHex),
 		zap.String("rawHex", fmt.Sprintf("0x%x", payload)))
 }

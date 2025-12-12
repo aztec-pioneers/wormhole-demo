@@ -16,7 +16,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * Aztec Guardian Payload Structure (after zero-stripping and byte reversal):
  *   - Bytes 0-31:  txId (32 bytes, added by guardian)
  *   - Bytes 32-33: destinationChainId (big-endian)
- *   - Byte 34:     value
+ *   - Bytes 34-49: value (uint128, big-endian)
  */
 contract MessageBridge is Ownable {
     using BytesLib for bytes;
@@ -48,15 +48,15 @@ contract MessageBridge is Ownable {
     uint32 public outboundNonce;
 
     // Current value set via message passing
-    uint8 public currentValue;
+    uint128 public currentValue;
 
     // ============================================================================
     // EVENTS
     // ============================================================================
 
     event EmitterRegistered(uint16 indexed chainId, bytes32 emitterAddress);
-    event ValueReceived(uint8 value);
-    event ValueSent(uint16 indexed destinationChainId, uint8 value, uint64 sequence);
+    event ValueReceived(uint128 value);
+    event ValueSent(uint16 indexed destinationChainId, uint128 value, uint64 sequence);
 
     // ============================================================================
     // CONSTRUCTOR
@@ -115,12 +115,12 @@ contract MessageBridge is Ownable {
     /**
      * @notice Send a value to a remote chain
      * @param destinationChainId Wormhole chain ID of the destination
-     * @param value The value to send (0-255)
+     * @param value The value to send (uint128)
      * @return sequence The Wormhole sequence number
      */
     function sendValue(
         uint16 destinationChainId,
-        uint8 value
+        uint128 value
     ) external payable notFork returns (uint64 sequence) {
         bytes memory payload = _encodePayload(value, destinationChainId);
 
@@ -183,9 +183,9 @@ contract MessageBridge is Ownable {
         // Actual payload structure from Aztec Guardian (after zero-stripping and reversal):
         // Bytes 0-31:  txId (32 bytes, added by guardian)
         // Bytes 32-33: destinationChainId (big-endian)
-        // Byte 34:     value
-        // Minimum: 35 bytes
-        require(payload.length >= 35, "Payload too short");
+        // Bytes 34-49: value (uint128, big-endian)
+        // Minimum: 50 bytes
+        require(payload.length >= 50, "Payload too short");
 
         // Extract txId from first 32 bytes (added by Aztec Guardian)
         bytes32 txId;
@@ -202,8 +202,13 @@ contract MessageBridge is Ownable {
         // uint16 destinationChainId = (uint16(uint8(payload[32])) << 8) |
         //     uint16(uint8(payload[33]));
 
-        // Value is at byte 34
-        uint8 value = uint8(payload[34]);
+        // Value is at bytes 34-49 (16 bytes, big-endian)
+        uint128 value;
+        assembly {
+            // Load 32 bytes starting at payload + 32 (length prefix) + 34 (offset)
+            // Then shift right by 128 bits (16 bytes) to get the uint128
+            value := shr(128, mload(add(add(payload, 32), 34)))
+        }
 
         currentValue = value;
         emit ValueReceived(value);
@@ -227,15 +232,15 @@ contract MessageBridge is Ownable {
     // ============================================================================
 
     function _encodePayload(
-        uint8 value,
+        uint128 value,
         uint16 destinationChainId
     ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
                 destinationChainId, // 2 bytes
-                value // 1 byte
+                value // 16 bytes
             );
-        // Total: 3 bytes
+        // Total: 18 bytes
     }
 
 }

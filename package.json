@@ -13,8 +13,8 @@
     "deploy:evm": "pnpm --filter @aztec-wormhole-demo/aztec-contracts deploy:evm",
     "deploy:aztec": "pnpm --filter @aztec-wormhole-demo/aztec-contracts setup:deploy",
     "configure": "pnpm --filter @aztec-wormhole-demo/aztec-contracts setup:configure",
-    "send-to-aztec": "pnpm --filter @aztec-wormhole-demo/aztec-contracts send",
-    "send-to-evm": "pnpm --filter @aztec-wormhole-demo/aztec-contracts send:evm",
+    "send-to-aztec": "pnpm --filter @aztec-wormhole-demo/aztec-contracts send:evm",
+    "send-to-evm": "pnpm --filter @aztec-wormhole-demo/aztec-contracts send",
     "read": "pnpm --filter @aztec-wormhole-demo/aztec-contracts read",
     "check:emitters": "pnpm --filter @aztec-wormhole-demo/aztec-contracts check:emitters",
     "sandbox": "docker compose up"

@@ -24,10 +24,17 @@ const WORMHOLE_ABI = [
 ] as const;
 
 const main = async () => {
-    const value = process.argv[2] ? parseInt(process.argv[2]) : 42;
+    let value: bigint;
+    try {
+        value = process.argv[2] ? BigInt(process.argv[2]) : 42n;
+    } catch {
+        console.error("Invalid value - must be a valid integer");
+        process.exit(1);
+    }
 
-    if (value < 0 || value > 255) {
-        console.error("Value must be between 0 and 255");
+    const MAX_U128 = 2n ** 128n - 1n;
+    if (value < 0n || value > MAX_U128) {
+        console.error(`Value must be between 0 and ${MAX_U128}`);
         process.exit(1);
     }
 
@@ -77,6 +84,9 @@ const main = async () => {
     if (valueSentEvent) {
         console.log(`\nMessage sent successfully!`);
     }
+
+    console.log(`\nSource chain explorer: https://sepolia.arbiscan.io/tx/${hash}`);
+    console.log(`Wormhole explorer: https://wormholescan.io/#/tx/${hash}?network=Testnet`);
 
     console.log(`\nNext: Wait for the relayer to process this message and deliver it to Aztec`);
 }

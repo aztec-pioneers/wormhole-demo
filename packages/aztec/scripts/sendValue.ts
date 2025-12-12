@@ -18,8 +18,8 @@ if (!AZTEC_WORMHOLE_ADDRESS)throw new Error("AZTEC_WORMHOLE_ADDRESS not set in .
 
 type SendMode = "private" | "public";
 
-function parseArgs(): { value: number; mode: SendMode } {
-    let value = 42;
+function parseArgs(): { value: bigint; mode: SendMode } {
+    let value = 42n;
     let mode: SendMode = "private"; // default to private
 
     for (const arg of process.argv.slice(2)) {
@@ -28,9 +28,10 @@ function parseArgs(): { value: number; mode: SendMode } {
         } else if (arg === "--private") {
             mode = "private";
         } else if (!arg.startsWith("--")) {
-            const parsed = parseInt(arg);
-            if (!isNaN(parsed)) {
-                value = parsed;
+            try {
+                value = BigInt(arg);
+            } catch {
+                // ignore invalid values
             }
         }
     }
@@ -41,8 +42,9 @@ function parseArgs(): { value: number; mode: SendMode } {
 const main = async () => {
     const { value, mode } = parseArgs();
 
-    if (value < 0 || value > 255) {
-        console.error("Value must be between 0 and 255");
+    const MAX_U128 = 2n ** 128n - 1n;
+    if (value < 0n || value > MAX_U128) {
+        console.error(`Value must be between 0 and ${MAX_U128}`);
         process.exit(1);
     }
 
@@ -89,6 +91,10 @@ const main = async () => {
     }
 
     console.log(`Transaction sent! Hash: ${receipt.txHash}`);
+
+    console.log(`\nSource chain explorer: https://devnet.aztecscan.xyz/tx-effects/${receipt.txHash}`);
+    console.log(`Wormhole explorer: (Aztec transactions not yet supported on wormholescan)`);
+
     console.log("\nNext: Wait for the relayer to process this message and deliver it to EVM");
 }
 

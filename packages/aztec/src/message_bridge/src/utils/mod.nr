@@ -12,10 +12,10 @@ pub global VAA_PAYLOAD_START: u32 = VAA_ENVELOPE_START + VAA_ENVELOPE_SIZE; // =
 pub global VAA_MAX_LENGTH: u32 = 2000;      // max VAA length in Wormhole spec
 pub global VAA_BODY_MAX_LENGTH: u32 = 1860; // max body length in Wormhole VAA spec
 
-// Message payload structure (3 bytes): destinationChainId (2) + value (1)
-pub global MESSAGE_PAYLOAD_LENGTH: u32 = 3;
-pub global MESSAGE_NULLIFIER_LENGTH: u32 = VAA_ENVELOPE_SIZE + MESSAGE_PAYLOAD_LENGTH; // 51 + 3 = 54
-pub global MESSAGE_NULLIFIER_PACKED_LENGTH: u32 = 2; // ceil(54 / 31) = 2
+// Message payload structure (18 bytes): destinationChainId (2) + value (16)
+pub global MESSAGE_PAYLOAD_LENGTH: u32 = 18;
+pub global MESSAGE_NULLIFIER_LENGTH: u32 = VAA_ENVELOPE_SIZE + MESSAGE_PAYLOAD_LENGTH; // 51 + 18 = 69
+pub global MESSAGE_NULLIFIER_PACKED_LENGTH: u32 = 3; // ceil(69 / 31) = 3
 
 /// Decoded VAA envelope (excludes header and signatures)
 pub struct DecodedVAAEnvelope {
@@ -39,12 +39,13 @@ impl DecodedVAAEnvelope {
     }
 }
 
-/// Decoded message payload (3 bytes)
+/// Decoded message payload (18 bytes)
 pub struct DecodedVAAPayload {
     pub destination_chain_id: u16,
-    pub value: u8,
+    pub value: u128,
 }
 
+// probably should just use Field::to_le_bytes but meh
 pub fn u16_to_u8(value: u16) -> [u8; 2] {
     // Safety: constrained below, use unconstrained for bitwise ops
     let decomposed = unsafe { _u16_to_u8(value) };
@@ -53,7 +54,7 @@ pub fn u16_to_u8(value: u16) -> [u8; 2] {
     decomposed
 }
 
-unconstrained pub fn _u16_to_u8(value: u16) -> [u8; 2]{
+unconstrained fn _u16_to_u8(value: u16) -> [u8; 2] {
     let high = (value >> 8) as u8;
     let low = (value & 0xFF) as u8;
     [high, low]
