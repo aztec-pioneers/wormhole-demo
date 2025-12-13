@@ -47,13 +47,6 @@ export interface WormholeEmitter {
 }
 
 /**
- * Counter account (for testing)
- */
-export interface Counter {
-    count: bigint;
-}
-
-/**
  * PDA addresses for the program
  */
 export interface ProgramPDAs {
@@ -63,8 +56,6 @@ export interface ProgramPDAs {
     currentValueBump: number;
     wormholeEmitter: PublicKey;
     wormholeEmitterBump: number;
-    counter: PublicKey;
-    counterBump: number;
 }
 
 /**

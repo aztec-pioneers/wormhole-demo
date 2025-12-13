@@ -103,16 +103,3 @@ impl CurrentValue {
     pub const SPACE: usize = 8 + 16;
 }
 
-/// Simple counter for testing basic contract access
-#[account]
-#[derive(Default)]
-pub struct Counter {
-    /// The counter value
-    pub count: u64,
-}
-
-impl Counter {
-    pub const SEED_PREFIX: &'static [u8] = b"counter";
-
-    pub const SPACE: usize = 8 + 8;
-}

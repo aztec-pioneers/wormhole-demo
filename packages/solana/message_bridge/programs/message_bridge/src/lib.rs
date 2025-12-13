@@ -275,27 +275,4 @@ pub mod message_bridge {
         Ok(())
     }
 
-    // =========================================================================
-    // TESTING INSTRUCTIONS (Simple counter for basic access testing)
-    // =========================================================================
-
-    /// Initialize the counter (for testing basic contract access)
-    pub fn initialize_counter(ctx: Context<InitializeCounter>) -> Result<()> {
-        ctx.accounts.counter.count = 0;
-        msg!("Counter initialized to 0");
-        Ok(())
-    }
-
-    /// Increment the counter (for testing basic contract access)
-    pub fn increment_counter(ctx: Context<IncrementCounter>) -> Result<()> {
-        ctx.accounts.counter.count += 1;
-        msg!("Counter incremented to {}", ctx.accounts.counter.count);
-        Ok(())
-    }
-
-    /// Get the current counter value (for testing - view function via simulate)
-    pub fn get_counter(ctx: Context<IncrementCounter>) -> Result<u64> {
-        msg!("Counter value: {}", ctx.accounts.counter.count);
-        Ok(ctx.accounts.counter.count)
-    }
 }

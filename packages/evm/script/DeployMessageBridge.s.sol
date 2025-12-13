@@ -11,13 +11,13 @@ contract DeployMessageBridge is Script {
         address wormholeAddress = vm.envAddress("WORMHOLE_ADDRESS");
         uint16 chainId = uint16(vm.envUint("CHAIN_ID"));
         uint256 evmChainId = block.chainid;
-        uint8 finality = uint8(vm.envUint("FINALITY"));
+        uint8 consistency = uint8(vm.envUint("CONSISTENCY"));
 
         console.log("Deploying MessageBridge with:");
         console.log("  Wormhole address:", wormholeAddress);
         console.log("  Chain ID (Wormhole):", chainId);
         console.log("  EVM Chain ID:", evmChainId);
-        console.log("  Finality:", finality);
+        console.log("  Consistency:", consistency);
 
         // Deploy contract
         vm.startBroadcast();
@@ -25,7 +25,7 @@ contract DeployMessageBridge is Script {
             wormholeAddress,
             chainId,
             evmChainId,
-            finality
+            consistency
         );
         vm.stopBroadcast();
 

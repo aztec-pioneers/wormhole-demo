@@ -99,7 +99,7 @@ contract MessageBridgeTest is Test {
     address public user;
 
     uint16 constant WORMHOLE_CHAIN_ID = 10003; // Arbitrum Sepolia
-    uint8 constant FINALITY = 1;
+    uint8 constant CONSISTENCY = 200;
 
     function setUp() public {
         owner = address(this);
@@ -114,7 +114,7 @@ contract MessageBridgeTest is Test {
             address(mockWormhole),
             WORMHOLE_CHAIN_ID,
             block.chainid,
-            FINALITY
+            CONSISTENCY
         );
     }
 
@@ -122,7 +122,7 @@ contract MessageBridgeTest is Test {
         assertEq(address(bridge.wormhole()), address(mockWormhole));
         assertEq(bridge.chainId(), WORMHOLE_CHAIN_ID);
         assertEq(bridge.evmChainId(), block.chainid);
-        assertEq(bridge.finality(), FINALITY);
+        assertEq(bridge.consistency(), CONSISTENCY);
         assertEq(bridge.owner(), owner);
         assertEq(bridge.outboundNonce(), 0);
     }

@@ -11,7 +11,6 @@ import {
 } from "@solana/web3.js";
 import {
     SEED_CONFIG,
-    SEED_COUNTER,
     SEED_CURRENT_VALUE,
     SEED_EMITTER,
     SEED_FOREIGN_EMITTER,
@@ -26,7 +25,6 @@ import {
 } from "./constants.js";
 import type {
     Config,
-    Counter,
     CurrentValue,
     ForeignEmitter,
     MessageBridgeClientOptions,
@@ -73,11 +71,6 @@ export class MessageBridgeClient {
             this.programId
         );
 
-        const [counter, counterBump] = PublicKey.findProgramAddressSync(
-            [SEED_COUNTER],
-            this.programId
-        );
-
         this.pdas = {
             config,
             configBump,
@@ -85,8 +78,6 @@ export class MessageBridgeClient {
             currentValueBump,
             wormholeEmitter,
             wormholeEmitterBump,
-            counter,
-            counterBump,
         };
 
         return this.pdas;
@@ -423,61 +414,6 @@ export class MessageBridgeClient {
         const [receivedMessage] = this.getReceivedMessagePDA(emitterChain, sequence);
         const accountInfo = await this.connection.getAccountInfo(receivedMessage);
         return accountInfo !== null;
-    }
-
-    // ============================================================
-    // COUNTER OPERATIONS (for testing)
-    // ============================================================
-
-    /**
-     * Initialize the counter
-     */
-    async initializeCounter(payer: Keypair): Promise<string> {
-        const pdas = this.getPDAs();
-
-        const ix = new TransactionInstruction({
-            keys: [
-                { pubkey: payer.publicKey, isSigner: true, isWritable: true },
-                { pubkey: pdas.counter, isSigner: false, isWritable: true },
-                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-            ],
-            programId: this.programId,
-            data: DISCRIMINATORS.initializeCounter,
-        });
-
-        const tx = new Transaction().add(ix);
-        return sendAndConfirmTransaction(this.connection, tx, [payer]);
-    }
-
-    /**
-     * Increment the counter
-     */
-    async incrementCounter(payer: Keypair): Promise<string> {
-        const pdas = this.getPDAs();
-
-        const ix = new TransactionInstruction({
-            keys: [{ pubkey: pdas.counter, isSigner: false, isWritable: true }],
-            programId: this.programId,
-            data: DISCRIMINATORS.incrementCounter,
-        });
-
-        const tx = new Transaction().add(ix);
-        return sendAndConfirmTransaction(this.connection, tx, [payer]);
-    }
-
-    /**
-     * Get the current counter value
-     */
-    async getCounter(): Promise<Counter | null> {
-        const pdas = this.getPDAs();
-        const accountInfo = await this.connection.getAccountInfo(pdas.counter);
-        if (!accountInfo) return null;
-
-        // Parse counter (skip 8-byte discriminator, read u64)
-        const data = accountInfo.data;
-        return {
-            count: data.readBigUInt64LE(8),
-        };
     }
 
     // ============================================================

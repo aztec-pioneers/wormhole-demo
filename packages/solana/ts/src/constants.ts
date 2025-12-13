@@ -8,7 +8,6 @@ export const CHAIN_ID_AZTEC = 56;
 
 // PDA Seeds
 export const SEED_CONFIG = Buffer.from("config");
-export const SEED_COUNTER = Buffer.from("counter");
 export const SEED_EMITTER = Buffer.from("emitter");
 export const SEED_FOREIGN_EMITTER = Buffer.from("foreign_emitter");
 export const SEED_RECEIVED = Buffer.from("received");
@@ -33,7 +32,4 @@ export const DISCRIMINATORS = {
     registerEmitter: Buffer.from([217, 153, 40, 34, 190, 121, 144, 105]),
     sendValue: Buffer.from([165, 247, 104, 64, 24, 235, 166, 189]),
     receiveValue: Buffer.from([131, 101, 246, 45, 2, 139, 81, 21]),
-    initializeCounter: Buffer.from([67, 89, 100, 87, 231, 172, 35, 124]),
-    incrementCounter: Buffer.from([16, 125, 2, 171, 73, 24, 207, 229]),
-    getCounter: Buffer.from([178, 42, 93, 7, 140, 213, 93, 150]),
 } as const;

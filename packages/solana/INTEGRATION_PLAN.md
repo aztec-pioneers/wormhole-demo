@@ -82,7 +82,7 @@ This document outlines the full integration plan for adding Solana support to th
 ### 2.2 Program Implementation
 
 - [x] **2.2.1** Define state accounts
-  - Config, ForeignEmitter, CurrentValue, ReceivedMessage, WormholeEmitter, Counter
+  - Config, ForeignEmitter, CurrentValue, ReceivedMessage, WormholeEmitter
 
 - [x] **2.2.2** Implement `initialize` instruction
   - Create config PDA
@@ -116,9 +116,8 @@ This document outlines the full integration plan for adding Solana support to th
 
 ### 2.3 Testing
 
-- [x] **2.3.1** Write counter test in TypeScript (basic contract access)
-  - Test initialization
-  - Test increment
+- [x] **2.3.1** ~~Counter test removed~~ - Testing now done via emitter registration
+  - Counter functionality was removed as real testing is done via cross-chain messaging
 
 - [ ] **2.3.2** Local validator testing (optional - using devnet instead)
   - Run `anchor test` with local validator
@@ -152,7 +151,6 @@ This document outlines the full integration plan for adding Solana support to th
   - `getCurrentValue()` - Read current value
   - `getForeignEmitter(chainId)` - Read registered emitter
   - `isMessageReceived(chain, sequence)` - Check replay protection
-  - `initializeCounter()` / `incrementCounter()` / `getCounter()` - Testing helpers
   - Static helpers: `evmAddressToWormhole()`, `aztecAddressToWormhole()`
 
 ---
@@ -238,7 +236,6 @@ This document outlines the full integration plan for adding Solana support to th
   {
     "build:solana": "cd packages/solana/message_bridge && anchor build",
     "deploy:solana": "tsx scripts/deploySolana.ts",
-    "test:solana": "tsx scripts/testSolanaCounter.ts",
     "deploy:all": "pnpm run deploy:evm && pnpm run deploy:aztec && pnpm run deploy:solana"
   }
   ```

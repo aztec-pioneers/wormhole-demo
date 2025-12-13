@@ -7,14 +7,12 @@ import { readFileSync, writeFileSync, existsSync, unlinkSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import * as anchor from "@coral-xyz/anchor";
 import { createSolanaClient, loadKeypair } from "./utils/solana";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const SOLANA_DIR = join(__dirname, "../packages/solana/message_bridge");
-const IDL_PATH = join(SOLANA_DIR, "target/idl/message_bridge.json");
 const KEYPAIR_PATH = join(SOLANA_DIR, "target/deploy/message_bridge-keypair.json");
 const LIB_RS_PATH = join(SOLANA_DIR, "programs/message_bridge/src/lib.rs");
 const ANCHOR_TOML_PATH = join(SOLANA_DIR, "Anchor.toml");
@@ -71,20 +69,7 @@ async function main() {
     await initializeBridge(newProgramId);
     console.log("Bridge initialized successfully!");
 
-    // 8. Initialize the counter (for testing)
-    console.log("\n7. Initializing counter for testing...");
-    try {
-        await initializeCounter(newProgramId);
-        console.log("Counter initialized successfully!");
-    } catch (err: any) {
-        if (err.message?.includes("already in use") || err.message?.includes("0x0")) {
-            console.log("Counter already initialized, skipping.");
-        } else {
-            console.error("Failed to initialize counter:", err.message);
-        }
-    }
-
-    // 9. Print summary
+    // 8. Print summary
     const { client } = createSolanaClient(SOLANA_RPC_URL, newProgramId);
     const emitterAddress = client.getEmitterAddress();
     const emitterHex = "0x" + Buffer.from(emitterAddress).toString("hex");
@@ -198,58 +183,6 @@ async function initializeBridge(programId: string) {
     // Initialize the bridge
     const sig = await client.initialize(payer);
     console.log(`  Transaction: ${sig}`);
-}
-
-async function initializeCounter(programId: string) {
-    // Load wallet from default Solana keypair location
-    const walletPath = join(process.env.HOME || "~", ".config/solana/id.json");
-    if (!existsSync(walletPath)) {
-        throw new Error(`Wallet not found at ${walletPath}. Run 'solana-keygen new' first.`);
-    }
-
-    const walletKeypair = Keypair.fromSecretKey(
-        Uint8Array.from(JSON.parse(readFileSync(walletPath, "utf8")))
-    );
-
-    // Setup connection and provider
-    const connection = new Connection(SOLANA_RPC_URL, "confirmed");
-    const wallet = new anchor.Wallet(walletKeypair);
-    const provider = new anchor.AnchorProvider(connection, wallet, {
-        commitment: "confirmed",
-    });
-    anchor.setProvider(provider);
-
-    // Load IDL and create program interface
-    const idl = JSON.parse(readFileSync(IDL_PATH, "utf8"));
-    const program = new anchor.Program(idl, new PublicKey(programId), provider);
-
-    // Derive counter PDA
-    const [counterPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("counter")],
-        new PublicKey(programId)
-    );
-
-    console.log(`  Counter PDA: ${counterPda.toBase58()}`);
-
-    // Check if already initialized
-    const counterAccount = await connection.getAccountInfo(counterPda);
-    if (counterAccount) {
-        console.log("  Counter already exists, skipping initialization.");
-        return;
-    }
-
-    // Initialize counter
-    const tx = await program.methods
-        .initializeCounter()
-        .accounts({
-            payer: walletKeypair.publicKey,
-            counter: counterPda,
-            systemProgram: anchor.web3.SystemProgram.programId,
-        })
-        .signers([walletKeypair])
-        .rpc();
-
-    console.log(`  Transaction: ${tx}`);
 }
 
 main().catch((err) => {

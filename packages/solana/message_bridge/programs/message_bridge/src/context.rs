@@ -237,34 +237,3 @@ pub struct ReceiveValue<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// Context for initializing the counter (for testing)
-#[derive(Accounts)]
-pub struct InitializeCounter<'info> {
-    /// Payer for account creation
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    /// Counter account (PDA)
-    #[account(
-        init,
-        payer = payer,
-        space = Counter::SPACE,
-        seeds = [Counter::SEED_PREFIX],
-        bump
-    )]
-    pub counter: Account<'info, Counter>,
-
-    pub system_program: Program<'info, System>,
-}
-
-/// Context for incrementing the counter (for testing)
-#[derive(Accounts)]
-pub struct IncrementCounter<'info> {
-    /// Counter account (PDA)
-    #[account(
-        mut,
-        seeds = [Counter::SEED_PREFIX],
-        bump
-    )]
-    pub counter: Account<'info, Counter>,
-}

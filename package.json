@@ -27,7 +27,6 @@
     "send": "tsx scripts/send.ts",
     "read:values": "tsx scripts/readValues.ts",
     "read:emitters": "tsx scripts/readEmitters.ts",
-    "test:solana": "tsx scripts/testSolanaCounter.ts",
     "relayer": "docker compose up"
   },
   "dependencies": {

@@ -17,7 +17,7 @@ const {
     ARBITRUM_RPC_URL,
     EVM_WORMHOLE_ADDRESS,
     EVM_CHAIN_ID,
-    EVM_FINALITY,
+    EVM_WORMHOLE_CONSISTENCY,
     ETHERSCAN_API_KEY
 } = process.env;
 
@@ -25,7 +25,7 @@ if (!EVM_PRIVATE_KEY) throw new Error("EVM_PRIVATE_KEY not set in .env");
 if (!ARBITRUM_RPC_URL) throw new Error("ARBITRUM_RPC_URL not set in .env");
 if (!EVM_WORMHOLE_ADDRESS) throw new Error("EVM_WORMHOLE_ADDRESS not set in .env");
 if (!EVM_CHAIN_ID) throw new Error("EVM_CHAIN_ID not set in .env");
-if (!EVM_FINALITY) throw new Error("EVM_FINALITY not set in .env");
+if (!EVM_WORMHOLE_CONSISTENCY) throw new Error("EVM_WORMHOLE_CONSISTENCY not set in .env");
 if (!ETHERSCAN_API_KEY) console.warn("Warning: ETHERSCAN_API_KEY not set - contract verification will be skipped");
 
 async function main() {
@@ -33,7 +33,7 @@ async function main() {
     console.log(`  RPC URL: ${ARBITRUM_RPC_URL}`);
     console.log(`  Wormhole Chain ID: ${EVM_CHAIN_ID}`);
     console.log(`  Wormhole Address: ${EVM_WORMHOLE_ADDRESS}`);
-    console.log(`  Finality: ${EVM_FINALITY}`);
+    console.log(`  Consistency: ${EVM_WORMHOLE_CONSISTENCY}`);
 
     // 1. Deploy using forge, passing env vars
     execSync(
@@ -49,7 +49,7 @@ async function main() {
                 // Map to the names expected by the forge script
                 WORMHOLE_ADDRESS: EVM_WORMHOLE_ADDRESS,
                 CHAIN_ID: EVM_CHAIN_ID,
-                FINALITY: EVM_FINALITY,
+                CONSISTENCY: EVM_WORMHOLE_CONSISTENCY,
             }
         }
     );
@@ -82,11 +82,11 @@ async function main() {
         console.log("\nVerifying contract on Arbiscan...");
         try {
             // Construct constructor args for verification
-            // Constructor: (address wormholeAddr, uint16 chainId_, uint256 evmChainId_, uint8 finality_)
+            // Constructor: (address wormholeAddr, uint16 chainId_, uint256 evmChainId_, uint8 consistency_)
             execSync(
                 `forge verify-contract ${address} src/MessageBridge.sol:MessageBridge \
                     --chain-id 421614 \
-                    --constructor-args $(cast abi-encode "constructor(address,uint16,uint256,uint8)" ${EVM_WORMHOLE_ADDRESS} ${EVM_CHAIN_ID} 421614 ${EVM_FINALITY}) \
+                    --constructor-args $(cast abi-encode "constructor(address,uint16,uint256,uint8)" ${EVM_WORMHOLE_ADDRESS} ${EVM_CHAIN_ID} 421614 ${EVM_WORMHOLE_CONSISTENCY}) \
                     --etherscan-api-key ${ETHERSCAN_API_KEY} \
                     --verifier-url "https://api.etherscan.io/v2/api?chainid=421614" \
                     --watch`,

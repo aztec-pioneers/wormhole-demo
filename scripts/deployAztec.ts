@@ -8,9 +8,10 @@ import { TestWallet } from "@aztec/test-wallet/server";
 import { AZTEC_WORMHOLE_CHAIN_ID } from "@aztec-wormhole-demo/aztec-contracts/constants";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 
-const { AZTEC_NODE_URL, AZTEC_WORMHOLE_ADDRESS } = process.env;
+const { AZTEC_NODE_URL, AZTEC_WORMHOLE_ADDRESS, AZTEC_WORMHOLE_CONSISTENCY } = process.env;
 if (!AZTEC_NODE_URL) throw new Error("AZTEC_NODE_URL not set in .env");
 if (!AZTEC_WORMHOLE_ADDRESS) throw new Error("AZTEC_WORMHOLE_ADDRESS not set in .env");
+if (!AZTEC_WORMHOLE_CONSISTENCY) throw new Error("AZTEC_WORMHOLE_CONSISTENCY not set in .env");
 
 const main = async () => {
     console.log(`Connecting to Aztec Node at ${AZTEC_NODE_URL}...`);
@@ -22,14 +23,19 @@ const main = async () => {
 
     console.log(`Using admin account: ${adminAddress.toString()}`);
 
+    const consistency = parseInt(AZTEC_WORMHOLE_CONSISTENCY, 10);
     console.log("Deploying MessageBridge contract...");
+    console.log(`  Wormhole Address: ${AZTEC_WORMHOLE_ADDRESS}`);
+    console.log(`  Wormhole Chain ID: ${AZTEC_WORMHOLE_CHAIN_ID}`);
+    console.log(`  Consistency: ${consistency}`);
     const opts = await testnetSendWaitOpts(node, wallet, adminAddress);
     const messageBridge = await MessageBridgeContract.deploy(
         wallet,
         AztecAddress.fromString(AZTEC_WORMHOLE_ADDRESS),
         AZTEC_WORMHOLE_CHAIN_ID,  // Use Wormhole chain ID (56), not Aztec testnet chain ID
         adminAddress,
-        MESSAGE_FEE
+        MESSAGE_FEE,
+        consistency
     ).send(opts.send).deployed(opts.wait);
         
     const bridgeAddress = messageBridge.address.toString();

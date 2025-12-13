@@ -50,11 +50,13 @@ pub contract MessageBridge {
         chain_id: u16,
         owner: AztecAddress,
         message_fee: u128,
+        consistency: u8
     ) {
         storage.config.initialize(Config::new(
             wormhole_address,
             chain_id,
             message_fee,
+            consistency
         ));
         storage.owner.write(owner);
 
@@ -96,7 +98,7 @@ pub contract MessageBridge {
             0, // nonce
             wormhole_payload,
             config.message_fee,
-            1, // consistency level (1 = confirmed)
+            config.consistency,
             caller,
             fee_nonce,
         ).call(&mut context);
@@ -120,7 +122,7 @@ pub contract MessageBridge {
             0, // nonce
             wormhole_payload,
             config.message_fee,
-            1, // consistency level (1 = confirmed)
+            config.consistency,
             caller,
             fee_nonce,
         ).call(&mut context);

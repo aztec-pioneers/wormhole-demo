@@ -35,7 +35,7 @@ contract MessageBridge is Ownable {
     uint256 public immutable EVM_CHAIN_ID;
 
     // Consistency level for outbound messages
-    uint8 public immutable FINALITY;
+    uint8 public immutable CONSISTENCY;
 
     // Registered emitters: remoteChainId => emitterAddress (one emitter per chain)
     mapping(uint16 => bytes32) public registeredEmitters;
@@ -66,21 +66,21 @@ contract MessageBridge is Ownable {
      * @param wormholeAddr Address of the Wormhole core contract
      * @param chainId_ Wormhole chain ID for this bridge (10003 = Arbitrum Sepolia)
      * @param evmChainId_ Native EVM chain ID (421614 = Arbitrum Sepolia)
-     * @param finality_ Consistency level for outbound messages
+     * @param consistency_ Consistency level for outbound messages
      */
     constructor(
         address wormholeAddr,
         uint16 chainId_,
         uint256 evmChainId_,
-        uint8 finality_
+        uint8 consistency_
     ) Ownable(msg.sender) {
         require(wormholeAddr != address(0), "Wormhole address cannot be zero");
-        require(finality_ > 0, "Finality must be greater than zero");
+        require(consistency_ > 0, "Consistency must be greater than zero");
 
         WORMHOLE = IWormhole(wormholeAddr);
         CHAIN_ID = chainId_;
         EVM_CHAIN_ID = evmChainId_;
-        FINALITY = finality_;
+        CONSISTENCY = consistency_;
         outboundNonce = 0;
     }
 
@@ -137,7 +137,7 @@ contract MessageBridge is Ownable {
         sequence = WORMHOLE.publishMessage{value: messageFee}(
             outboundNonce,
             payload,
-            FINALITY
+            CONSISTENCY
         );
 
         outboundNonce++;
