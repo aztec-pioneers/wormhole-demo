@@ -8,7 +8,6 @@ export {
     CHAIN_ID_ARBITRUM_SEPOLIA,
     CHAIN_ID_AZTEC,
     SEED_CONFIG,
-    SEED_COUNTER,
     SEED_CURRENT_VALUE,
     SEED_EMITTER,
     SEED_FOREIGN_EMITTER,
@@ -25,7 +24,6 @@ export {
 // Types
 export type {
     Config,
-    Counter,
     CurrentValue,
     ForeignEmitter,
     MessageBridgeClientOptions,
