@@ -19,19 +19,19 @@ import (
 const (
 	// Default configuration values for Solana
 	DefaultSolanaRPCURL = "https://api.devnet.solana.com"
-	// Wormhole chain IDs for sources that relay to Solana
-	DefaultEVMChainIDForSolana   = uint16(10003) // Arbitrum Sepolia
-	DefaultAztecChainIDForSolana = uint16(56)    // Aztec
 )
+
+// Default source chains for Solana destination (Arbitrum=10003, Aztec=56)
+var DefaultSolanaSourceChains = []int{10003, 56}
 
 // solanaCmd represents the command to relay VAAs to Solana
 var solanaCmd = &cobra.Command{
 	Use:   "solana",
 	Short: "Relay Wormhole VAAs to Solana",
-	Long: `Listens for Wormhole VAAs from EVM or Aztec and relays them to Solana.
+	Long: `Listens for Wormhole VAAs from configured source chains and relays them to Solana.
 
-This command monitors the Wormhole network for messages destined for Solana
-and submits them to the Solana MessageBridge program.`,
+This command monitors the Wormhole network for messages from EVM chains, Aztec,
+or other configured chains and submits them to the Solana MessageBridge program.`,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		printBanner()
 		configureLogging(cmd, args)
@@ -58,10 +58,15 @@ func init() {
 		"",
 		"MessageBridge program ID on Solana (required)")
 
-	solanaCmd.PersistentFlags().Uint16(
-		"chain-id",
-		DefaultEVMChainIDForSolana,
-		"Source chain ID to listen for (Arbitrum = 10003, Aztec = 56)")
+	solanaCmd.Flags().String(
+		"solana-wormhole-program-id",
+		"",
+		"Wormhole Core Bridge program ID on Solana (default: devnet)")
+
+	solanaCmd.Flags().IntSlice(
+		"chain-ids",
+		DefaultSolanaSourceChains,
+		"Source chain IDs to listen for (Arbitrum=10003, Aztec=56)")
 
 	solanaCmd.Flags().String(
 		"emitter-address",
@@ -76,17 +81,19 @@ func init() {
 	viper.BindPFlag("solana_rpc_url", solanaCmd.Flags().Lookup("solana-rpc-url"))
 	viper.BindPFlag("solana_private_key", solanaCmd.Flags().Lookup("solana-private-key"))
 	viper.BindPFlag("solana_program_id", solanaCmd.Flags().Lookup("solana-program-id"))
-	viper.BindPFlag("chain_id", solanaCmd.PersistentFlags().Lookup("chain-id"))
+	viper.BindPFlag("solana_wormhole_program_id", solanaCmd.Flags().Lookup("solana-wormhole-program-id"))
+	viper.BindPFlag("chain_ids", solanaCmd.Flags().Lookup("chain-ids"))
 	viper.BindPFlag("emitter_address", solanaCmd.Flags().Lookup("emitter-address"))
 }
 
 type SolanaConfig struct {
-	SpyRPCHost       string // Wormhole spy service endpoint
-	ChainID          uint16 // Source chain ID to listen for
-	SolanaRPCURL     string // RPC URL for Solana
-	SolanaPrivateKey string // Private key for Solana transactions (base58)
-	SolanaProgramID  string // MessageBridge program ID
-	EmitterAddress   string // Source emitter address to filter
+	SpyRPCHost              string   // Wormhole spy service endpoint
+	ChainIDs                []uint16 // Source chain IDs to listen for
+	SolanaRPCURL            string   // RPC URL for Solana
+	SolanaPrivateKey        string   // Private key for Solana transactions (base58)
+	SolanaProgramID         string   // MessageBridge program ID
+	SolanaWormholeProgramID string   // Wormhole Core Bridge program ID (optional, defaults to devnet)
+	EmitterAddress          string   // Source emitter address to filter
 }
 
 func runSolanaRelay(cmd *cobra.Command, args []string) error {
@@ -96,13 +103,21 @@ func runSolanaRelay(cmd *cobra.Command, args []string) error {
 	// Get emitter address directly from flag
 	emitterAddress, _ := cmd.Flags().GetString("emitter-address")
 
+	// Convert chain IDs from []int to []uint16
+	chainIDsInt := viper.GetIntSlice("chain_ids")
+	chainIDs := make([]uint16, len(chainIDsInt))
+	for i, id := range chainIDsInt {
+		chainIDs[i] = uint16(id)
+	}
+
 	config := SolanaConfig{
-		SpyRPCHost:       viper.GetString("spy_rpc_host"),
-		ChainID:          uint16(viper.GetInt("chain_id")),
-		SolanaRPCURL:     viper.GetString("solana_rpc_url"),
-		SolanaPrivateKey: viper.GetString("solana_private_key"),
-		SolanaProgramID:  viper.GetString("solana_program_id"),
-		EmitterAddress:   emitterAddress,
+		SpyRPCHost:              viper.GetString("spy_rpc_host"),
+		ChainIDs:                chainIDs,
+		SolanaRPCURL:            viper.GetString("solana_rpc_url"),
+		SolanaPrivateKey:        viper.GetString("solana_private_key"),
+		SolanaProgramID:         viper.GetString("solana_program_id"),
+		SolanaWormholeProgramID: viper.GetString("solana_wormhole_program_id"),
+		EmitterAddress:          emitterAddress,
 	}
 
 	// Validate required config
@@ -115,7 +130,7 @@ func runSolanaRelay(cmd *cobra.Command, args []string) error {
 
 	logger.Info("Configuration",
 		zap.String("spyRPC", config.SpyRPCHost),
-		zap.Uint16("chainId", config.ChainID),
+		zap.Any("chainIds", config.ChainIDs),
 		zap.String("solanaRPC", config.SolanaRPCURL),
 		zap.String("solanaProgramID", config.SolanaProgramID),
 		zap.String("emitterFilter", config.EmitterAddress))
@@ -132,6 +147,7 @@ func runSolanaRelay(cmd *cobra.Command, args []string) error {
 		config.SolanaRPCURL,
 		config.SolanaPrivateKey,
 		config.SolanaProgramID,
+		config.SolanaWormholeProgramID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create Solana client: %v", err)
@@ -147,7 +163,7 @@ func runSolanaRelay(cmd *cobra.Command, args []string) error {
 	// Create VAA processor
 	vaaProcessor := internal.NewDefaultVAAProcessor(logger,
 		internal.VAAProcessorConfig{
-			ChainID:        config.ChainID,
+			ChainIDs:       config.ChainIDs,
 			EmitterAddress: config.EmitterAddress,
 		},
 		solanaSubmitter)

@@ -50,8 +50,8 @@ services:
     restart: unless-stopped
 
 
-  # Relayer for Aztec -> EVM (listens for Aztec VAAs, submits to EVM)
-  relayer-to-evm:
+  # Relayer for EVM destination (listens for Aztec + Solana VAAs)
+  relayer-evm:
     build:
       context: ./packages/relayer
       dockerfile: Dockerfile
@@ -59,12 +59,9 @@ services:
       - evm
       - --private-key=${EVM_PRIVATE_KEY}
       - --evm-target-contract=${EVM_BRIDGE_ADDRESS}
-      # Emitter filter disabled - VAA encodes address as ASCII, causing mismatch
-      # - --emitter-address=${AZTEC_WORMHOLE_ADDRESS}
+      # Default: --chain-ids=56,1 (Aztec, Solana)
     environment:
-      # Wormhole Spy (prefixed for viper)
       - WORMHOLE_RELAYER_SPY_RPC_HOST=wormhole-spy:7073
-      # EVM RPC URL
       - WORMHOLE_RELAYER_EVM_RPC_URL=${ARBITRUM_RPC_URL}
     depends_on:
       - wormhole-spy
@@ -72,22 +69,16 @@ services:
       - relayer-network
     restart: unless-stopped
 
-
-  # Relayer for EVM -> Aztec (listens for EVM VAAs, submits to Aztec VAA service)
-  relayer-to-aztec:
+  # Relayer for Aztec destination (listens for Arbitrum + Solana VAAs)
+  relayer-aztec:
     build:
       context: ./packages/relayer
       dockerfile: Dockerfile
     command:
       - aztec
-      # Emitter filter disabled - VAA encodes address as ASCII, causing mismatch
-      # - --emitter-address=${EVM_BRIDGE_ADDRESS}
+      # Default: --chain-ids=10003,1 (Arbitrum, Solana)
     environment:
-      # Wormhole Spy (prefixed for viper)
       - WORMHOLE_RELAYER_SPY_RPC_HOST=wormhole-spy:7073
-      # Source chain (EVM - Arbitrum Sepolia)
-      - WORMHOLE_RELAYER_CHAIN_ID=${WORMHOLE_CHAIN_ID:-10003}
-      # VAA verification service
       - WORMHOLE_RELAYER_VERIFICATION_SERVICE_URL=http://vaa-service:3000
     depends_on:
       wormhole-spy:
@@ -98,6 +89,26 @@ services:
       - relayer-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # Relayer for Solana destination (listens for Arbitrum + Aztec VAAs)
+  relayer-solana:
+    build:
+      context: ./packages/relayer
+      dockerfile: Dockerfile
+    command:
+      - solana
+      - --solana-private-key=${SOLANA_PRIVATE_KEY}
+      - --solana-program-id=${SOLANA_BRIDGE_PROGRAM_ID}
+      # Default: --chain-ids=10003,56 (Arbitrum, Aztec)
+    environment:
+      - WORMHOLE_RELAYER_SPY_RPC_HOST=wormhole-spy:7073
+      - WORMHOLE_RELAYER_SOLANA_RPC_URL=${SOLANA_RPC_URL}
+      - WORMHOLE_RELAYER_SOLANA_WORMHOLE_PROGRAM_ID=${SOLANA_WORMHOLE_PROGRAM_ID}
+    depends_on:
+      - wormhole-spy
+    networks:
+      - relayer-network
     restart: unless-stopped
 
 networks:

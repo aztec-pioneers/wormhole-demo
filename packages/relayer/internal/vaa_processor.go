@@ -16,8 +16,8 @@ type VAAProcessor interface {
 }
 
 type VAAProcessorConfig struct {
-	ChainID        uint16
-	EmitterAddress string // Hex-encoded emitter address to filter (empty = no filter)
+	ChainIDs       []uint16 // Source chain IDs to listen for (empty = accept all)
+	EmitterAddress string   // Hex-encoded emitter address to filter (empty = no filter)
 }
 
 type DefaultVAAProcessor struct {
@@ -81,9 +81,9 @@ func (p *DefaultVAAProcessor) ProcessVAA(ctx context.Context, vaaData VAAData) (
 		parseAndLogPayload(p.logger, vaaData.VAA.Payload)
 	}
 
-	// Check if this is a VAA from our configured source chain
-	if vaaData.ChainID != p.config.ChainID {
-		// Skip VAAs not from our configured chain
+	// Check if this is a VAA from one of our configured source chains
+	if len(p.config.ChainIDs) > 0 && !containsChainID(p.config.ChainIDs, vaaData.ChainID) {
+		// Skip VAAs not from our configured chains
 		p.logger.Debug("Skipping VAA (not from configured chain)",
 			zap.Uint64("sequence", vaaData.Sequence),
 			zap.Uint16("chain", vaaData.ChainID))
@@ -120,4 +120,14 @@ func (p *DefaultVAAProcessor) ProcessVAA(ctx context.Context, vaaData VAAData) (
 		zap.String("sourceTxID", vaaData.TxID))
 
 	return txHash, nil
+}
+
+// containsChainID checks if a chain ID is in the list
+func containsChainID(chainIDs []uint16, target uint16) bool {
+	for _, id := range chainIDs {
+		if id == target {
+			return true
+		}
+	}
+	return false
 }

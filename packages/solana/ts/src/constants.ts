@@ -20,7 +20,8 @@ export const SEED_WORMHOLE_FEE_COLLECTOR = Buffer.from("fee_collector");
 export const SEED_WORMHOLE_SEQUENCE = Buffer.from("Sequence");
 export const SEED_WORMHOLE_POSTED_VAA = Buffer.from("PostedVAA");
 
-// Wormhole Program ID (devnet - matches wormhole-anchor-sdk "solana-devnet" feature)
+// Wormhole Program ID (devnet default - matches wormhole-anchor-sdk "solana-devnet" feature)
+// Override via SOLANA_WORMHOLE_PROGRAM_ID env var or wormholeProgramId client option
 // Note: mainnet is "worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth"
 export const WORMHOLE_PROGRAM_ID = new PublicKey(
     "3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5"

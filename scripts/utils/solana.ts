@@ -3,7 +3,7 @@ import bs58 from "bs58";
 import { readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { MessageBridgeClient } from "@aztec-wormhole-demo/solana-sdk";
+import { MessageBridgeClient, WORMHOLE_PROGRAM_ID } from "@aztec-wormhole-demo/solana-sdk";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -49,14 +49,23 @@ export function loadKeypair(path?: string): Keypair {
 
 /**
  * Create a Solana connection and MessageBridgeClient
+ *
+ * Reads SOLANA_WORMHOLE_PROGRAM_ID from env if set, otherwise uses SDK default (devnet)
  */
 export function createSolanaClient(
     rpcUrl: string,
     programId: string
 ): { connection: Connection; client: MessageBridgeClient } {
     const connection = new Connection(rpcUrl, "confirmed");
+
+    // Read Wormhole program ID from env or use SDK default
+    const wormholeProgramId = process.env.SOLANA_WORMHOLE_PROGRAM_ID
+        ? new PublicKey(process.env.SOLANA_WORMHOLE_PROGRAM_ID)
+        : WORMHOLE_PROGRAM_ID;
+
     const client = new MessageBridgeClient(connection, {
         programId: new PublicKey(programId),
+        wormholeProgramId,
     });
     return { connection, client };
 }

@@ -19,21 +19,23 @@ import (
 
 const (
 	// Default configuration values
-	DefaultAztecPXEURL             = "http://localhost:8090"
-	DefaultAztecWalletAddress      = "0x1f3933ca4d66e948ace5f8339e5da687993b76ee57bcf65e82596e0fc10a8859"
-	DefaultAztecTargetContract     = "0x0848d2af89dfd7c0e171238f9216399e61e908cd31b0222a920f1bf621a16ed6"
-	DefaultVerificationServiceURL  = "http://localhost:8080"
-	DefaultArbitrumChainIDForAztec = uint16(10003) // Arbitrum Sepolia Wormhole chain ID (source for Aztec relay)
+	DefaultAztecPXEURL            = "http://localhost:8090"
+	DefaultAztecWalletAddress     = "0x1f3933ca4d66e948ace5f8339e5da687993b76ee57bcf65e82596e0fc10a8859"
+	DefaultAztecTargetContract    = "0x0848d2af89dfd7c0e171238f9216399e61e908cd31b0222a920f1bf621a16ed6"
+	DefaultVerificationServiceURL = "http://localhost:8080"
 )
+
+// Default source chains for Aztec destination (Arbitrum=10003, Solana=1)
+var DefaultAztecSourceChains = []int{10003, 1}
 
 // aztecCmd represents the command to relay VAAs to Aztec
 var aztecCmd = &cobra.Command{
 	Use:   "aztec",
-	Short: "Relay Wormhole VAAs from EVM chains to Aztec",
-	Long: `Listens for Wormhole VAAs from EVM chains and relays them to Aztec.
+	Short: "Relay Wormhole VAAs to Aztec",
+	Long: `Listens for Wormhole VAAs from configured source chains and relays them to Aztec.
 
-This command monitors the Wormhole network for messages from the specified
-source chain and submits them to the Aztec network via PXE.`,
+This command monitors the Wormhole network for messages from EVM chains, Solana,
+or other configured chains and submits them to the Aztec network.`,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		printBanner()
 		configureLogging(cmd, args)
@@ -65,7 +67,10 @@ func init() {
 		DefaultVerificationServiceURL,
 		"Verification service URL (optional)")
 
-	aztecCmd.PersistentFlags().Uint16("chain-id", DefaultArbitrumChainIDForAztec, "Source chain ID to listen for (Arbitrum Sepolia = 10003)")
+	aztecCmd.Flags().IntSlice(
+		"chain-ids",
+		DefaultAztecSourceChains,
+		"Source chain IDs to listen for (Arbitrum=10003, Solana=1)")
 
 	aztecCmd.Flags().String(
 		"emitter-address",
@@ -77,30 +82,37 @@ func init() {
 	viper.BindPFlag("aztec_wallet_address", aztecCmd.Flags().Lookup("aztec-wallet-address"))
 	viper.BindPFlag("aztec_target_contract", aztecCmd.Flags().Lookup("aztec-target-contract"))
 	viper.BindPFlag("verification_service_url", aztecCmd.Flags().Lookup("verification-service-url"))
-	viper.BindPFlag("chain_id", aztecCmd.PersistentFlags().Lookup("chain-id"))
+	viper.BindPFlag("chain_ids", aztecCmd.Flags().Lookup("chain-ids"))
 	viper.BindPFlag("emitter_address", aztecCmd.Flags().Lookup("emitter-address"))
 }
 
 type AztecConfig struct {
-	SpyRPCHost             string // Wormhole spy service endpoint
-	ChainID                uint16 // Source chain ID (Arbitrum Sepolia = 10003)
-	AztecPXEURL            string // PXE URL for Aztec
-	AztecWalletAddress     string // Aztec wallet address to use
-	AztecTargetContract    string // Target contract on Aztec
-	VerificationServiceURL string // Optional verification service URL
-	EmitterAddress         string // Source emitter address to filter
+	SpyRPCHost             string   // Wormhole spy service endpoint
+	ChainIDs               []uint16 // Source chain IDs to listen for
+	AztecPXEURL            string   // PXE URL for Aztec
+	AztecWalletAddress     string   // Aztec wallet address to use
+	AztecTargetContract    string   // Target contract on Aztec
+	VerificationServiceURL string   // Optional verification service URL
+	EmitterAddress         string   // Source emitter address to filter
 }
 
 func runAztecRelay(cmd *cobra.Command, args []string) error {
 	logger := configureLogging(cmd, args)
-	logger.Info("Starting Aztec relayer (EVM -> Aztec)")
+	logger.Info("Starting Aztec relayer")
 
 	// Get emitter address directly from flag (viper doesn't pick up command-line flags reliably)
 	emitterAddress, _ := cmd.Flags().GetString("emitter-address")
 
+	// Convert chain IDs from []int to []uint16
+	chainIDsInt := viper.GetIntSlice("chain_ids")
+	chainIDs := make([]uint16, len(chainIDsInt))
+	for i, id := range chainIDsInt {
+		chainIDs[i] = uint16(id)
+	}
+
 	config := AztecConfig{
 		SpyRPCHost:             viper.GetString("spy_rpc_host"),
-		ChainID:                uint16(viper.GetInt("chain_id")),
+		ChainIDs:               chainIDs,
 		AztecPXEURL:            viper.GetString("aztec_pxe_url"),
 		AztecWalletAddress:     viper.GetString("aztec_wallet_address"),
 		AztecTargetContract:    viper.GetString("aztec_target_contract"),
@@ -110,7 +122,7 @@ func runAztecRelay(cmd *cobra.Command, args []string) error {
 
 	logger.Info("Configuration",
 		zap.String("spyRPC", config.SpyRPCHost),
-		zap.Uint16("chainId", config.ChainID),
+		zap.Any("chainIds", config.ChainIDs),
 		zap.String("aztecPXE", config.AztecPXEURL),
 		zap.String("aztecWallet", config.AztecWalletAddress),
 		zap.String("aztecTarget", config.AztecTargetContract),
@@ -147,14 +159,14 @@ func runAztecRelay(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	submitter := submitter.NewAztecSubmitter(logger,
+	aztecSubmitter := submitter.NewAztecSubmitter(logger,
 		config.AztecTargetContract, pxeClient, verificationService)
 	vaaProcessor := internal.NewDefaultVAAProcessor(logger,
 		internal.VAAProcessorConfig{
-			ChainID:        config.ChainID,
+			ChainIDs:       config.ChainIDs,
 			EmitterAddress: config.EmitterAddress,
 		},
-		submitter)
+		aztecSubmitter)
 
 	// Create and start relayer
 	relayer, err := internal.NewRelayer(logger, spyClient, vaaProcessor)

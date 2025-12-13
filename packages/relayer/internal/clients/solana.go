@@ -11,8 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// Wormhole devnet program ID
-var WormholeProgramID = solana.MustPublicKeyFromBase58("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5")
+// Default Wormhole devnet program ID
+var DefaultWormholeProgramID = solana.MustPublicKeyFromBase58("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5")
 
 // PDA seeds for our MessageBridge program
 var (
@@ -41,7 +41,8 @@ type SolanaClient struct {
 }
 
 // NewSolanaClient creates a new Solana client
-func NewSolanaClient(logger *zap.Logger, rpcURL string, privateKeyBase58 string, programID string) (*SolanaClient, error) {
+// If wormholeProgramID is empty, uses DefaultWormholeProgramID (devnet)
+func NewSolanaClient(logger *zap.Logger, rpcURL string, privateKeyBase58 string, programID string, wormholeProgramID string) (*SolanaClient, error) {
 	client := &SolanaClient{
 		logger: logger.With(zap.String("component", "SolanaClient")),
 	}
@@ -65,11 +66,22 @@ func NewSolanaClient(logger *zap.Logger, rpcURL string, privateKeyBase58 string,
 		return nil, fmt.Errorf("invalid program ID: %v", err)
 	}
 	client.programID = progID
-	client.wormholeProgramID = WormholeProgramID
+
+	// Parse Wormhole program ID or use default
+	if wormholeProgramID != "" {
+		whProgID, err := solana.PublicKeyFromBase58(wormholeProgramID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid wormhole program ID: %v", err)
+		}
+		client.wormholeProgramID = whProgID
+	} else {
+		client.wormholeProgramID = DefaultWormholeProgramID
+	}
 
 	client.logger.Info("Solana client initialized",
 		zap.String("payer", client.payer.PublicKey().String()),
-		zap.String("programID", client.programID.String()))
+		zap.String("programID", client.programID.String()),
+		zap.String("wormholeProgramID", client.wormholeProgramID.String()))
 
 	return client, nil
 }
