@@ -1,0 +1,181 @@
+package cmd
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"go.uber.org/zap"
+
+	"github.com/wormhole-demo/relayer/internal"
+	"github.com/wormhole-demo/relayer/internal/clients"
+	"github.com/wormhole-demo/relayer/internal/submitter"
+)
+
+const (
+	// Default configuration values for Solana
+	DefaultSolanaRPCURL = "https://api.devnet.solana.com"
+	// Wormhole chain IDs for sources that relay to Solana
+	DefaultEVMChainIDForSolana   = uint16(10003) // Arbitrum Sepolia
+	DefaultAztecChainIDForSolana = uint16(56)    // Aztec
+)
+
+// solanaCmd represents the command to relay VAAs to Solana
+var solanaCmd = &cobra.Command{
+	Use:   "solana",
+	Short: "Relay Wormhole VAAs to Solana",
+	Long: `Listens for Wormhole VAAs from EVM or Aztec and relays them to Solana.
+
+This command monitors the Wormhole network for messages destined for Solana
+and submits them to the Solana MessageBridge program.`,
+	PreRun: func(cmd *cobra.Command, args []string) {
+		printBanner()
+		configureLogging(cmd, args)
+	},
+	RunE: runSolanaRelay,
+}
+
+func init() {
+	rootCmd.AddCommand(solanaCmd)
+
+	// Solana-specific flags
+	solanaCmd.Flags().String(
+		"solana-rpc-url",
+		DefaultSolanaRPCURL,
+		"RPC URL for Solana (devnet)")
+
+	solanaCmd.Flags().String(
+		"solana-private-key",
+		"",
+		"Private key for Solana transactions (base58 encoded, required)")
+
+	solanaCmd.Flags().String(
+		"solana-program-id",
+		"",
+		"MessageBridge program ID on Solana (required)")
+
+	solanaCmd.PersistentFlags().Uint16(
+		"chain-id",
+		DefaultEVMChainIDForSolana,
+		"Source chain ID to listen for (Arbitrum = 10003, Aztec = 56)")
+
+	solanaCmd.Flags().String(
+		"emitter-address",
+		"",
+		"Source emitter address to filter (hex)")
+
+	// Mark required flags
+	solanaCmd.MarkFlagRequired("solana-private-key")
+	solanaCmd.MarkFlagRequired("solana-program-id")
+
+	// Bind flags to viper
+	viper.BindPFlag("solana_rpc_url", solanaCmd.Flags().Lookup("solana-rpc-url"))
+	viper.BindPFlag("solana_private_key", solanaCmd.Flags().Lookup("solana-private-key"))
+	viper.BindPFlag("solana_program_id", solanaCmd.Flags().Lookup("solana-program-id"))
+	viper.BindPFlag("chain_id", solanaCmd.PersistentFlags().Lookup("chain-id"))
+	viper.BindPFlag("emitter_address", solanaCmd.Flags().Lookup("emitter-address"))
+}
+
+type SolanaConfig struct {
+	SpyRPCHost       string // Wormhole spy service endpoint
+	ChainID          uint16 // Source chain ID to listen for
+	SolanaRPCURL     string // RPC URL for Solana
+	SolanaPrivateKey string // Private key for Solana transactions (base58)
+	SolanaProgramID  string // MessageBridge program ID
+	EmitterAddress   string // Source emitter address to filter
+}
+
+func runSolanaRelay(cmd *cobra.Command, args []string) error {
+	logger := configureLogging(cmd, args)
+	logger.Info("Starting Solana relayer")
+
+	// Get emitter address directly from flag
+	emitterAddress, _ := cmd.Flags().GetString("emitter-address")
+
+	config := SolanaConfig{
+		SpyRPCHost:       viper.GetString("spy_rpc_host"),
+		ChainID:          uint16(viper.GetInt("chain_id")),
+		SolanaRPCURL:     viper.GetString("solana_rpc_url"),
+		SolanaPrivateKey: viper.GetString("solana_private_key"),
+		SolanaProgramID:  viper.GetString("solana_program_id"),
+		EmitterAddress:   emitterAddress,
+	}
+
+	// Validate required config
+	if config.SolanaPrivateKey == "" {
+		return fmt.Errorf("Solana private key is required")
+	}
+	if config.SolanaProgramID == "" {
+		return fmt.Errorf("Solana program ID is required")
+	}
+
+	logger.Info("Configuration",
+		zap.String("spyRPC", config.SpyRPCHost),
+		zap.Uint16("chainId", config.ChainID),
+		zap.String("solanaRPC", config.SolanaRPCURL),
+		zap.String("solanaProgramID", config.SolanaProgramID),
+		zap.String("emitterFilter", config.EmitterAddress))
+
+	// Create spy client
+	spyClient, err := clients.NewSpyClient(logger, config.SpyRPCHost)
+	if err != nil {
+		return fmt.Errorf("failed to create spy client: %v", err)
+	}
+
+	// Create Solana client
+	solanaClient, err := clients.NewSolanaClient(
+		logger,
+		config.SolanaRPCURL,
+		config.SolanaPrivateKey,
+		config.SolanaProgramID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create Solana client: %v", err)
+	}
+
+	logger.Info("Connected to Solana",
+		zap.String("payer", solanaClient.GetPayerAddress().String()),
+		zap.String("programID", solanaClient.GetProgramID().String()))
+
+	// Create Solana submitter
+	solanaSubmitter := submitter.NewSolanaSubmitter(logger, solanaClient)
+
+	// Create VAA processor
+	vaaProcessor := internal.NewDefaultVAAProcessor(logger,
+		internal.VAAProcessorConfig{
+			ChainID:        config.ChainID,
+			EmitterAddress: config.EmitterAddress,
+		},
+		solanaSubmitter)
+
+	// Create and start relayer
+	relayer, err := internal.NewRelayer(logger, spyClient, vaaProcessor)
+	if err != nil {
+		return fmt.Errorf("failed to initialize relayer: %v", err)
+	}
+	defer relayer.Close()
+
+	// Setup context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Handle graceful shutdown
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		logger.Info("Received shutdown signal")
+		cancel()
+	}()
+
+	// Start the relayer
+	if err := relayer.Start(ctx); err != nil {
+		return fmt.Errorf("relayer stopped with error: %v", err)
+	}
+
+	return nil
+}

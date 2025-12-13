@@ -157,37 +157,43 @@ This document outlines the full integration plan for adding Solana support to th
 
 ## Phase 4: Relayer Updates
 
-### 4.1 Solana VAA Fetching
+### 4.1 Solana RPC Client
 
-- [ ] **4.1.1** Add Solana RPC client to relayer
-  - Add `github.com/gagliardetto/solana-go` dependency
-  - Configure Solana RPC endpoint in `.env`
+- [x] **4.1.1** Add Solana RPC client to relayer
+  - Added `github.com/gagliardetto/solana-go` v1.12.0 dependency
+  - Created `internal/clients/solana.go` with:
+    - Solana RPC connection
+    - Keypair loading (base58)
+    - PDA derivation (config, currentValue, foreignEmitter, receivedMessage, postedVAA)
+    - VAA hash computation
+    - `receive_value` instruction building
+    - Transaction signing and submission
 
-- [ ] **4.1.2** Implement Solana transaction monitoring
-  - Subscribe to Wormhole message events from Solana
-  - Parse emitted messages for bridge transactions
+- [x] **4.1.2** ~~Transaction monitoring~~ - Not needed
+  - VAAs come from Wormhole spy stream, no direct chain monitoring required
 
 ### 4.2 Solana VAA Submission
 
-- [ ] **4.2.1** Implement VAA posting to Solana
-  - Post VAA to Wormhole Core Bridge
-  - Wait for VAA verification
-  - Call `receive_value` on MessageBridge
+- [x] **4.2.1** Implement VAA submission to Solana
+  - Created `internal/submitter/solana.go` implementing `VAASubmitter` interface
+  - Parses VAA header for emitter chain and sequence
+  - Checks if VAA is posted to Wormhole
+  - Calls `receive_value` on MessageBridge program
+  - **Note**: VAA posting to Wormhole assumed to be done by guardians
 
-- [ ] **4.2.2** Update relayer routing logic
-  - Add Solana chain ID (1) to routing table
-  - Route messages: Aztec -> Solana, EVM -> Solana, Solana -> Aztec, Solana -> EVM
+- [x] **4.2.2** Add Solana CLI command
+  - Created `cmd/solana.go` with flags:
+    - `--solana-rpc-url` (default: devnet)
+    - `--solana-private-key` (base58, required)
+    - `--solana-program-id` (required)
+    - `--chain-id` (source chain: 10003=Arbitrum, 56=Aztec)
+    - `--emitter-address` (optional filter)
 
 ### 4.3 Configuration
 
-- [ ] **4.3.1** Add Solana config to `.env.example`
-  ```
-  SOLANA_RPC_URL=https://api.devnet.solana.com
-  SOLANA_PRIVATE_KEY=<base58>
-  SOLANA_MESSAGE_BRIDGE_PROGRAM_ID=<pubkey>
-  ```
+- [ ] **4.3.1** Add Solana config to `.env.example` (skipped per user request)
 
-- [ ] **4.3.2** Update `docker-compose.yml` if needed
+- [ ] **4.3.2** Update `docker-compose.yml` if needed (skipped per user request)
 
 ---
 
@@ -199,15 +205,13 @@ This document outlines the full integration plan for adding Solana support to th
   - Updates lib.rs and Anchor.toml with new program ID
   - Builds and deploys to devnet
   - Initializes bridge (Config, CurrentValue, WormholeEmitter PDAs)
-  - Initializes counter for testing
   - Saves program ID to `.env`
   - Prints emitter address for registration
   - **Deployed: `3fUukpbbRBydKXKYwpXojTtQSWxFbQ5EB7DmoVsZqJ2c`**
   - **Note**: Uses `wormhole-anchor-sdk` with `solana-devnet` feature (Wormhole: `3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5`)
 
-- [x] **5.2** Create `scripts/testSolanaCounter.ts`
-  - Test basic contract access on devnet
-  - Verified counter increment works
+- [x] **5.2** ~~Counter test script removed~~
+  - Counter functionality removed; testing done via emitter registration
 
 - [x] **5.3** Unified `scripts/send.ts`
   - Single script: `pnpm send <value> --from <source> --to <destination>`
