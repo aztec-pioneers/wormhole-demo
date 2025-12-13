@@ -28,7 +28,7 @@ func NewSolanaSubmitter(logger *zap.Logger, solanaClient *clients.SolanaClient) 
 // SubmitVAA submits the given VAA bytes to the Solana MessageBridge and returns the transaction signature or an error
 func (s *SolanaSubmitter) SubmitVAA(ctx context.Context, vaaBytes []byte) (string, error) {
 	// Create a context with timeout for submission operations
-	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
 
 	s.logger.Info("Submitting VAA to Solana",
@@ -46,11 +46,39 @@ func (s *SolanaSubmitter) SubmitVAA(ctx context.Context, vaaBytes []byte) (strin
 		zap.Uint16("emitterChain", emitterChain),
 		zap.Uint64("sequence", sequence))
 
-	// First, check if VAA is posted to Wormhole
-	_, err = s.solanaClient.PostVAAToWormhole(ctx, vaaBytes)
-	if err != nil {
-		s.logger.Warn("VAA may not be posted to Wormhole yet", zap.Error(err))
-		// Continue anyway - the transaction will fail if VAA isn't posted
+	// Try to post VAA and wait for it with retries
+	maxRetries := 10
+	retryDelay := 3 * time.Second
+	var lastErr error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		// Check/post VAA to Wormhole
+		_, err = s.solanaClient.PostVAAToWormhole(ctx, vaaBytes)
+		if err == nil {
+			s.logger.Info("VAA is posted to Wormhole, proceeding with receive_value")
+			break
+		}
+
+		lastErr = err
+		if attempt < maxRetries {
+			s.logger.Info("Waiting for VAA to be posted to Wormhole",
+				zap.Int("attempt", attempt),
+				zap.Int("maxRetries", maxRetries),
+				zap.Duration("nextRetry", retryDelay))
+			select {
+			case <-ctx.Done():
+				return "", fmt.Errorf("context cancelled while waiting for VAA: %w", ctx.Err())
+			case <-time.After(retryDelay):
+				retryDelay = retryDelay * 3 / 2 // Increase delay
+				if retryDelay > 15*time.Second {
+					retryDelay = 15 * time.Second
+				}
+			}
+		}
+	}
+
+	if lastErr != nil && err != nil {
+		s.logger.Warn("VAA may not be fully posted, attempting receive_value anyway", zap.Error(lastErr))
 	}
 
 	// Submit receive_value transaction

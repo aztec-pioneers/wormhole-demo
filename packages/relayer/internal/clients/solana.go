@@ -1,11 +1,17 @@
 package clients
 
 import (
+	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"time"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
 	"go.uber.org/zap"
@@ -33,18 +39,25 @@ var DiscriminatorReceiveValue = []byte{131, 101, 246, 45, 2, 139, 81, 21}
 
 // SolanaClient handles interactions with Solana blockchain
 type SolanaClient struct {
-	client           *rpc.Client
-	payer            solana.PrivateKey
-	programID        solana.PublicKey
+	client            *rpc.Client
+	payer             solana.PrivateKey
+	programID         solana.PublicKey
 	wormholeProgramID solana.PublicKey
-	logger           *zap.Logger
+	vaaServiceURL     string // URL of the VAA posting service
+	httpClient        *http.Client
+	logger            *zap.Logger
 }
 
 // NewSolanaClient creates a new Solana client
 // If wormholeProgramID is empty, uses DefaultWormholeProgramID (devnet)
-func NewSolanaClient(logger *zap.Logger, rpcURL string, privateKeyBase58 string, programID string, wormholeProgramID string) (*SolanaClient, error) {
+// If vaaServiceURL is provided, VAAs will be posted via that service before calling receive_value
+func NewSolanaClient(logger *zap.Logger, rpcURL string, privateKeyBase58 string, programID string, wormholeProgramID string, vaaServiceURL string) (*SolanaClient, error) {
 	client := &SolanaClient{
-		logger: logger.With(zap.String("component", "SolanaClient")),
+		logger:        logger.With(zap.String("component", "SolanaClient")),
+		vaaServiceURL: vaaServiceURL,
+		httpClient: &http.Client{
+			Timeout: 60 * time.Second,
+		},
 	}
 
 	client.logger.Info("Connecting to Solana", zap.String("rpcURL", rpcURL))
@@ -81,7 +94,8 @@ func NewSolanaClient(logger *zap.Logger, rpcURL string, privateKeyBase58 string,
 	client.logger.Info("Solana client initialized",
 		zap.String("payer", client.payer.PublicKey().String()),
 		zap.String("programID", client.programID.String()),
-		zap.String("wormholeProgramID", client.wormholeProgramID.String()))
+		zap.String("wormholeProgramID", client.wormholeProgramID.String()),
+		zap.String("vaaServiceURL", client.vaaServiceURL))
 
 	return client, nil
 }
@@ -128,6 +142,7 @@ func (c *SolanaClient) DerivePostedVAAPDA(vaaHash [32]byte) (solana.PublicKey, u
 }
 
 // ComputeVAAHash computes the hash of VAA body (used for posted VAA PDA)
+// Wormhole uses keccak256 of the VAA body for PDA derivation
 func ComputeVAAHash(vaaBytes []byte) ([32]byte, error) {
 	// VAA structure:
 	// - 1 byte: version
@@ -148,7 +163,8 @@ func ComputeVAAHash(vaaBytes []byte) ([32]byte, error) {
 	}
 
 	body := vaaBytes[bodyStart:]
-	hash := sha256.Sum256(body)
+	// Wormhole uses keccak256 for VAA body hash (same as Ethereum)
+	hash := crypto.Keccak256Hash(body)
 	return hash, nil
 }
 
@@ -289,12 +305,9 @@ func (c *SolanaClient) SendReceiveValueTransaction(
 	return sig.String(), nil
 }
 
-// PostVAAToWormhole posts a VAA to the Wormhole bridge for verification
-// This is a complex operation that requires multiple transactions:
-// 1. verify_signatures (partial, multiple txs for large guardian sets)
-// 2. post_vaa
-// For simplicity, we'll assume the VAA is already posted by the Wormhole guardians
-// and just check if it exists. In production, you'd use the Wormhole SDK.
+// PostVAAToWormhole posts a VAA to the Wormhole bridge for verification.
+// If vaaServiceURL is configured, it calls the external VAA posting service.
+// Otherwise, it just checks if the VAA is already posted.
 func (c *SolanaClient) PostVAAToWormhole(ctx context.Context, vaaBytes []byte) (solana.PublicKey, error) {
 	vaaHash, err := ComputeVAAHash(vaaBytes)
 	if err != nil {
@@ -309,15 +322,92 @@ func (c *SolanaClient) PostVAAToWormhole(ctx context.Context, vaaBytes []byte) (
 	// Check if VAA is already posted
 	info, err := c.client.GetAccountInfo(ctx, postedVAA)
 	if err != nil {
-		return solana.PublicKey{}, fmt.Errorf("failed to check posted VAA: %v", err)
+		c.logger.Warn("Failed to check posted VAA account", zap.Error(err))
 	}
 
-	if info == nil || info.Value == nil {
-		// VAA not posted yet - in production, we would post it ourselves
-		// For now, we'll return an error indicating the VAA needs to be posted
-		return solana.PublicKey{}, fmt.Errorf("VAA not yet posted to Wormhole at %s - posting VAAs requires the wormhole-sdk which is complex to implement in Go", postedVAA.String())
+	if info != nil && info.Value != nil {
+		c.logger.Info("VAA already posted to Wormhole", zap.String("postedVAA", postedVAA.String()))
+		return postedVAA, nil
 	}
 
-	c.logger.Info("VAA already posted to Wormhole", zap.String("postedVAA", postedVAA.String()))
-	return postedVAA, nil
+	// VAA not posted - try to post it via the VAA service
+	if c.vaaServiceURL == "" {
+		return solana.PublicKey{}, fmt.Errorf("VAA not yet posted to Wormhole at %s and no VAA service URL configured", postedVAA.String())
+	}
+
+	c.logger.Info("Posting VAA via VAA service",
+		zap.String("serviceURL", c.vaaServiceURL),
+		zap.Int("vaaLength", len(vaaBytes)))
+
+	// Call the VAA posting service
+	if err := c.callVAAService(ctx, vaaBytes); err != nil {
+		return solana.PublicKey{}, fmt.Errorf("failed to post VAA via service: %w", err)
+	}
+
+	// Verify the VAA is now posted
+	for i := 0; i < 10; i++ {
+		time.Sleep(2 * time.Second)
+		info, err = c.client.GetAccountInfo(ctx, postedVAA)
+		if err == nil && info != nil && info.Value != nil {
+			c.logger.Info("VAA successfully posted to Wormhole", zap.String("postedVAA", postedVAA.String()))
+			return postedVAA, nil
+		}
+		c.logger.Debug("Waiting for VAA to be posted...", zap.Int("attempt", i+1))
+	}
+
+	return solana.PublicKey{}, fmt.Errorf("VAA was posted but not found on chain after 20 seconds")
+}
+
+// callVAAService posts a VAA to the external VAA posting service
+func (c *SolanaClient) callVAAService(ctx context.Context, vaaBytes []byte) error {
+	// Prepare request body
+	reqBody := map[string]string{
+		"vaa": hex.EncodeToString(vaaBytes),
+	}
+	reqJSON, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	// Create HTTP request
+	url := c.vaaServiceURL + "/post-vaa"
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqJSON))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Send request
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Parse response
+	var result struct {
+		Success   bool   `json:"success"`
+		Signature string `json:"signature"`
+		Error     string `json:"error"`
+		Message   string `json:"message"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return fmt.Errorf("failed to parse response: %w (body: %s)", err, string(body))
+	}
+
+	if !result.Success && result.Error != "" {
+		return fmt.Errorf("VAA service error: %s", result.Error)
+	}
+
+	c.logger.Info("VAA posted via service",
+		zap.String("signature", result.Signature),
+		zap.String("message", result.Message))
+
+	return nil
 }

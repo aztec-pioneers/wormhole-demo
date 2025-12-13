@@ -91,6 +91,28 @@ services:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
+  # Solana VAA Posting Service - posts VAAs to Wormhole on Solana
+  solana-vaa-service:
+    build:
+      context: ./packages/solana-vaa-service
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - SOLANA_RPC_URL=${SOLANA_RPC_URL}
+      - SOLANA_PRIVATE_KEY=${SOLANA_PRIVATE_KEY}
+      - SOLANA_WORMHOLE_PROGRAM_ID=${SOLANA_WORMHOLE_PROGRAM_ID}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - relayer-network
+
   # Relayer for Solana destination (listens for Arbitrum + Aztec VAAs)
   relayer-solana:
     build:
@@ -105,8 +127,12 @@ services:
       - WORMHOLE_RELAYER_SPY_RPC_HOST=wormhole-spy:7073
       - WORMHOLE_RELAYER_SOLANA_RPC_URL=${SOLANA_RPC_URL}
       - WORMHOLE_RELAYER_SOLANA_WORMHOLE_PROGRAM_ID=${SOLANA_WORMHOLE_PROGRAM_ID}
+      - WORMHOLE_RELAYER_SOLANA_VAA_SERVICE_URL=http://solana-vaa-service:3001
     depends_on:
-      - wormhole-spy
+      wormhole-spy:
+        condition: service_started
+      solana-vaa-service:
+        condition: service_healthy
     networks:
       - relayer-network
     restart: unless-stopped

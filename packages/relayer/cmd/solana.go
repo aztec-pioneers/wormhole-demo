@@ -80,13 +80,13 @@ func init() {
 	solanaCmd.MarkFlagRequired("solana-private-key")
 	solanaCmd.MarkFlagRequired("solana-program-id")
 
-	// Bind flags to viper
+	// Bind flags to viper (but chain_ids read from flags directly to avoid conflicts)
 	viper.BindPFlag("solana_rpc_url", solanaCmd.Flags().Lookup("solana-rpc-url"))
 	viper.BindPFlag("solana_private_key", solanaCmd.Flags().Lookup("solana-private-key"))
 	viper.BindPFlag("solana_program_id", solanaCmd.Flags().Lookup("solana-program-id"))
 	viper.BindPFlag("solana_wormhole_program_id", solanaCmd.Flags().Lookup("solana-wormhole-program-id"))
-	viper.BindPFlag("chain_ids", solanaCmd.Flags().Lookup("chain-ids"))
 	viper.BindPFlag("emitter_address", solanaCmd.Flags().Lookup("emitter-address"))
+	// Note: solana_vaa_service_url is read from env WORMHOLE_RELAYER_SOLANA_VAA_SERVICE_URL
 }
 
 type SolanaConfig struct {
@@ -96,6 +96,7 @@ type SolanaConfig struct {
 	SolanaPrivateKey        string   // Private key for Solana transactions (base58)
 	SolanaProgramID         string   // MessageBridge program ID
 	SolanaWormholeProgramID string   // Wormhole Core Bridge program ID (optional, defaults to devnet)
+	SolanaVAAServiceURL     string   // URL for the Solana VAA posting service
 	EmitterAddress          string   // Source emitter address to filter
 }
 
@@ -120,6 +121,7 @@ func runSolanaRelay(cmd *cobra.Command, args []string) error {
 		SolanaPrivateKey:        viper.GetString("solana_private_key"),
 		SolanaProgramID:         viper.GetString("solana_program_id"),
 		SolanaWormholeProgramID: viper.GetString("solana_wormhole_program_id"),
+		SolanaVAAServiceURL:     viper.GetString("solana_vaa_service_url"),
 		EmitterAddress:          emitterAddress,
 	}
 
@@ -136,6 +138,7 @@ func runSolanaRelay(cmd *cobra.Command, args []string) error {
 		zap.Any("chainIds", config.ChainIDs),
 		zap.String("solanaRPC", config.SolanaRPCURL),
 		zap.String("solanaProgramID", config.SolanaProgramID),
+		zap.String("vaaServiceURL", config.SolanaVAAServiceURL),
 		zap.String("emitterFilter", config.EmitterAddress))
 
 	// Create spy client
@@ -151,6 +154,7 @@ func runSolanaRelay(cmd *cobra.Command, args []string) error {
 		config.SolanaPrivateKey,
 		config.SolanaProgramID,
 		config.SolanaWormholeProgramID,
+		config.SolanaVAAServiceURL,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create Solana client: %v", err)

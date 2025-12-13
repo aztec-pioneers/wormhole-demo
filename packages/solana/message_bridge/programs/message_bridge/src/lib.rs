@@ -11,7 +11,7 @@ pub use error::*;
 pub use message::*;
 pub use state::*;
 
-declare_id!("uFY3R4H6ro9yW4NaCENbRN6gq2VZZQpF1NA5Szxp1Mc");
+declare_id!("3hvaMuhsJGzejYo3N4PgpkWfjJcDonWE7gYUzjWZEnrZ");
 
 /// Wormhole chain ID for Solana
 pub const SOLANA_CHAIN_ID: u16 = 1;
@@ -222,31 +222,34 @@ pub mod message_bridge {
         let foreign_emitter = &ctx.accounts.foreign_emitter;
 
         // Parse the posted VAA account data
-        // PostedVaaV1 layout:
-        // - 3 bytes: discriminator "vaa"
-        // - 1 byte: version
-        // - 4 bytes: guardian_set_index
-        // - 4 bytes: timestamp
-        // - 4 bytes: nonce
-        // - 2 bytes: emitter_chain
-        // - 32 bytes: emitter_address
-        // - 8 bytes: sequence
-        // - 1 byte: consistency_level
-        // - remaining: payload
+        // PostedVAA layout (Borsh serialized):
+        // - 3 bytes: magic "vaa"
+        // Then MessageData (Borsh format, little-endian):
+        // - 1 byte: vaa_version (offset 3)
+        // - 1 byte: consistency_level (offset 4)
+        // - 4 bytes: vaa_time (offset 5)
+        // - 32 bytes: vaa_signature_account (offset 9)
+        // - 4 bytes: submission_time (offset 41)
+        // - 4 bytes: nonce (offset 45)
+        // - 8 bytes: sequence (offset 49)
+        // - 2 bytes: emitter_chain (offset 57)
+        // - 32 bytes: emitter_address (offset 59)
+        // - 4 bytes: payload length (offset 91)
+        // - payload data (offset 95)
         let vaa_data = posted_vaa.try_borrow_data()?;
 
-        // Minimum size: 3 + 1 + 4 + 4 + 4 + 2 + 32 + 8 + 1 = 59 bytes
-        require!(vaa_data.len() >= 59, MessageBridgeError::InvalidPayload);
+        // Minimum size: 3 + 88 + 4 = 95 bytes (before payload data)
+        require!(vaa_data.len() >= 95, MessageBridgeError::InvalidPayload);
 
-        // Parse emitter chain (offset 16, 2 bytes)
-        let parsed_emitter_chain = u16::from_be_bytes([vaa_data[16], vaa_data[17]]);
+        // Parse emitter chain (offset 57, 2 bytes, little-endian)
+        let parsed_emitter_chain = u16::from_le_bytes([vaa_data[57], vaa_data[58]]);
 
-        // Parse emitter address (offset 18, 32 bytes)
+        // Parse emitter address (offset 59, 32 bytes)
         let mut parsed_emitter_address = [0u8; 32];
-        parsed_emitter_address.copy_from_slice(&vaa_data[18..50]);
+        parsed_emitter_address.copy_from_slice(&vaa_data[59..91]);
 
-        // Parse sequence (offset 50, 8 bytes)
-        let parsed_sequence = u64::from_be_bytes(vaa_data[50..58].try_into().unwrap());
+        // Parse sequence (offset 49, 8 bytes, little-endian)
+        let parsed_sequence = u64::from_le_bytes(vaa_data[49..57].try_into().unwrap());
 
         // Verify the provided parameters match the VAA
         require!(
@@ -264,8 +267,14 @@ pub mod message_bridge {
             MessageBridgeError::InvalidForeignEmitter
         );
 
-        // Get payload (after consistency_level at offset 58)
-        let payload = &vaa_data[59..];
+        // Get payload (Vec<u8> with 4-byte length prefix at offset 91)
+        // Read payload length (4 bytes LE at offset 91)
+        let payload_len = u32::from_le_bytes(vaa_data[91..95].try_into().unwrap()) as usize;
+        require!(
+            vaa_data.len() >= 95 + payload_len,
+            MessageBridgeError::InvalidPayload
+        );
+        let payload = &vaa_data[95..95 + payload_len];
 
         // Decode the message based on registered emitter type
         // is_default_payload: true = 18-byte (Solana/EVM), false = 50-byte (Aztec with txId)
