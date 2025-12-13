@@ -16,8 +16,9 @@ type VAAProcessor interface {
 }
 
 type VAAProcessorConfig struct {
-	ChainIDs       []uint16 // Source chain IDs to listen for (empty = accept all)
-	EmitterAddress string   // Hex-encoded emitter address to filter (empty = no filter)
+	ChainIDs           []uint16 // Source chain IDs to listen for (empty = accept all)
+	EmitterAddress     string   // Hex-encoded emitter address to filter (empty = no filter)
+	DestinationChainID uint16   // Destination chain ID to filter (0 = no filter)
 }
 
 type DefaultVAAProcessor struct {
@@ -97,6 +98,18 @@ func (p *DefaultVAAProcessor) ProcessVAA(ctx context.Context, vaaData VAAData) (
 			zap.String("emitter", vaaData.EmitterHex),
 			zap.String("expectedEmitter", p.config.EmitterAddress))
 		return "", nil
+	}
+
+	// Check if this VAA is destined for our chain
+	if p.config.DestinationChainID != 0 {
+		destChainID := extractDestinationChainID(vaaData.VAA.Payload)
+		if destChainID != p.config.DestinationChainID {
+			p.logger.Debug("Skipping VAA (wrong destination chain)",
+				zap.Uint64("sequence", vaaData.Sequence),
+				zap.Uint16("destinationChain", destChainID),
+				zap.Uint16("expectedDestination", p.config.DestinationChainID))
+			return "", nil
+		}
 	}
 
 	txHash, err := p.submitter.SubmitVAA(ctx, vaaData.RawBytes)

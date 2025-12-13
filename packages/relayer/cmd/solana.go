@@ -19,6 +19,9 @@ import (
 const (
 	// Default configuration values for Solana
 	DefaultSolanaRPCURL = "https://api.devnet.solana.com"
+
+	// Wormhole chain ID for Solana
+	SolanaDestinationChainID uint16 = 1
 )
 
 // Default source chains for Solana destination (Arbitrum=10003, Aztec=56)
@@ -100,11 +103,11 @@ func runSolanaRelay(cmd *cobra.Command, args []string) error {
 	logger := configureLogging(cmd, args)
 	logger.Info("Starting Solana relayer")
 
-	// Get emitter address directly from flag
+	// Get flags directly from command (viper bindings conflict across commands)
 	emitterAddress, _ := cmd.Flags().GetString("emitter-address")
+	chainIDsInt, _ := cmd.Flags().GetIntSlice("chain-ids")
 
 	// Convert chain IDs from []int to []uint16
-	chainIDsInt := viper.GetIntSlice("chain_ids")
 	chainIDs := make([]uint16, len(chainIDsInt))
 	for i, id := range chainIDsInt {
 		chainIDs[i] = uint16(id)
@@ -163,8 +166,9 @@ func runSolanaRelay(cmd *cobra.Command, args []string) error {
 	// Create VAA processor
 	vaaProcessor := internal.NewDefaultVAAProcessor(logger,
 		internal.VAAProcessorConfig{
-			ChainIDs:       config.ChainIDs,
-			EmitterAddress: config.EmitterAddress,
+			ChainIDs:           config.ChainIDs,
+			EmitterAddress:     config.EmitterAddress,
+			DestinationChainID: SolanaDestinationChainID,
 		},
 		solanaSubmitter)
 

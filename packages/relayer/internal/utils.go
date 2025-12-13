@@ -14,6 +14,21 @@ func computeVAAKey(vaaBytes []byte) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// extractDestinationChainID extracts the destination chain ID from a payload
+// Handles both payload formats:
+//   - Default (18 bytes): [chainId(2) | value(16)] - destination at bytes 0-1
+//   - Aztec (50 bytes):   [txId(32) | chainId(2) | value(16)] - destination at bytes 32-33
+func extractDestinationChainID(payload []byte) uint16 {
+	if len(payload) >= 50 {
+		// Aztec format: txId(32) + chainId(2) + value(16)
+		return (uint16(payload[32]) << 8) | uint16(payload[33])
+	} else if len(payload) >= 18 {
+		// Default format: chainId(2) + value(16)
+		return (uint16(payload[0]) << 8) | uint16(payload[1])
+	}
+	return 0
+}
+
 // parseAndLogPayload parses and logs payload structure at debug level
 // Payload structure (18 bytes):
 //   Bytes 0-1:  destinationChainId (big-endian)

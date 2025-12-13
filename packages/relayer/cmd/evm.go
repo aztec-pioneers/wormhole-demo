@@ -20,6 +20,9 @@ const (
 	// Default configuration values for EVM
 	DefaultEVMRPCURL         = "https://sepolia-rollup.arbitrum.io/rpc"
 	DefaultEVMTargetContract = "0x248EC2E5595480fF371031698ae3a4099b8dC229"
+
+	// Wormhole chain ID for Arbitrum Sepolia
+	EVMDestinationChainID uint16 = 10003
 )
 
 // Default source chains for EVM destination (Aztec=56, Solana=1)
@@ -93,11 +96,11 @@ func runEVMRelay(cmd *cobra.Command, args []string) error {
 	logger := configureLogging(cmd, args)
 	logger.Info("Starting EVM relayer")
 
-	// Get emitter address directly from flag (viper doesn't pick up command-line flags reliably)
+	// Get flags directly from command (viper bindings conflict across commands)
 	emitterAddress, _ := cmd.Flags().GetString("emitter-address")
+	chainIDsInt, _ := cmd.Flags().GetIntSlice("chain-ids")
 
 	// Convert chain IDs from []int to []uint16
-	chainIDsInt := viper.GetIntSlice("chain_ids")
 	chainIDs := make([]uint16, len(chainIDsInt))
 	for i, id := range chainIDsInt {
 		chainIDs[i] = uint16(id)
@@ -145,8 +148,9 @@ func runEVMRelay(cmd *cobra.Command, args []string) error {
 	// Create VAA processor
 	vaaProcessor := internal.NewDefaultVAAProcessor(logger,
 		internal.VAAProcessorConfig{
-			ChainIDs:       config.ChainIDs,
-			EmitterAddress: config.EmitterAddress,
+			ChainIDs:           config.ChainIDs,
+			EmitterAddress:     config.EmitterAddress,
+			DestinationChainID: EVMDestinationChainID,
 		},
 		evmSubmitter)
 

@@ -23,6 +23,9 @@ const (
 	DefaultAztecWalletAddress     = "0x1f3933ca4d66e948ace5f8339e5da687993b76ee57bcf65e82596e0fc10a8859"
 	DefaultAztecTargetContract    = "0x0848d2af89dfd7c0e171238f9216399e61e908cd31b0222a920f1bf621a16ed6"
 	DefaultVerificationServiceURL = "http://localhost:8080"
+
+	// Wormhole chain ID for Aztec
+	AztecDestinationChainID uint16 = 56
 )
 
 // Default source chains for Aztec destination (Arbitrum=10003, Solana=1)
@@ -100,11 +103,11 @@ func runAztecRelay(cmd *cobra.Command, args []string) error {
 	logger := configureLogging(cmd, args)
 	logger.Info("Starting Aztec relayer")
 
-	// Get emitter address directly from flag (viper doesn't pick up command-line flags reliably)
+	// Get flags directly from command (viper bindings conflict across commands)
 	emitterAddress, _ := cmd.Flags().GetString("emitter-address")
+	chainIDsInt, _ := cmd.Flags().GetIntSlice("chain-ids")
 
 	// Convert chain IDs from []int to []uint16
-	chainIDsInt := viper.GetIntSlice("chain_ids")
 	chainIDs := make([]uint16, len(chainIDsInt))
 	for i, id := range chainIDsInt {
 		chainIDs[i] = uint16(id)
@@ -163,8 +166,9 @@ func runAztecRelay(cmd *cobra.Command, args []string) error {
 		config.AztecTargetContract, pxeClient, verificationService)
 	vaaProcessor := internal.NewDefaultVAAProcessor(logger,
 		internal.VAAProcessorConfig{
-			ChainIDs:       config.ChainIDs,
-			EmitterAddress: config.EmitterAddress,
+			ChainIDs:           config.ChainIDs,
+			EmitterAddress:     config.EmitterAddress,
+			DestinationChainID: AztecDestinationChainID,
 		},
 		aztecSubmitter)
 
