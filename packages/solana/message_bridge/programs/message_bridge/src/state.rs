@@ -38,14 +38,16 @@ pub struct ForeignEmitter {
     pub chain_id: u16,
     /// Emitter address on the foreign chain (32 bytes)
     pub address: [u8; 32],
+    /// Payload format: true = default 18-byte (Solana/EVM), false = Aztec 50-byte (with txId)
+    pub is_default_payload: bool,
 }
 
 impl ForeignEmitter {
     pub const SEED_PREFIX: &'static [u8] = b"foreign_emitter";
 
     /// ForeignEmitter account size
-    /// 8 (discriminator) + 2 (chain_id) + 32 (address)
-    pub const SPACE: usize = 8 + 2 + 32;
+    /// 8 (discriminator) + 2 (chain_id) + 32 (address) + 1 (is_default_payload)
+    pub const SPACE: usize = 8 + 2 + 32 + 1;
 
     /// Verify that an emitter address matches this registered emitter
     pub fn verify(&self, emitter_address: &[u8; 32]) -> bool {

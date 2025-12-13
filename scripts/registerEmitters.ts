@@ -60,7 +60,7 @@ async function configureEvmBridge() {
         throw new Error(`Not owner of EVM bridge. Owner: ${owner}, You: ${account.address}`);
     }
 
-    // Register Aztec emitter
+    // Register Aztec emitter (isDefaultPayload = false, Aztec uses 50-byte payload with txId)
     console.log(`\n  Registering Aztec emitter (chain ${AZTEC_WORMHOLE_CHAIN_ID})...`);
     const aztecEmitterBytes32 = addressToBytes32(AZTEC_WORMHOLE_ADDRESS!);
 
@@ -78,13 +78,13 @@ async function configureEvmBridge() {
             address: evmBridgeAddress,
             abi: MESSAGE_BRIDGE_ABI,
             functionName: "registerEmitter",
-            args: [AZTEC_WORMHOLE_CHAIN_ID, aztecEmitterBytes32],
+            args: [AZTEC_WORMHOLE_CHAIN_ID, aztecEmitterBytes32, false], // false = Aztec payload (50 bytes with txId)
         });
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
         console.log(`    Registered in block ${receipt.blockNumber}`);
     }
 
-    // Register Solana emitter if enabled
+    // Register Solana emitter if enabled (isDefaultPayload = true, Solana uses 18-byte default payload)
     if (SOLANA_ENABLED) {
         console.log(`\n  Registering Solana emitter (chain ${CHAIN_ID_SOLANA})...`);
         const { client } = createSolanaClient(SOLANA_RPC_URL!, SOLANA_BRIDGE_PROGRAM_ID!);
@@ -105,7 +105,7 @@ async function configureEvmBridge() {
                 address: evmBridgeAddress,
                 abi: MESSAGE_BRIDGE_ABI,
                 functionName: "registerEmitter",
-                args: [CHAIN_ID_SOLANA, solanaEmitterBytes32],
+                args: [CHAIN_ID_SOLANA, solanaEmitterBytes32, true], // true = default payload (18 bytes)
             });
             const receipt = await publicClient.waitForTransactionReceipt({ hash });
             console.log(`    Registered in block ${receipt.blockNumber}`);
@@ -205,7 +205,7 @@ async function configureSolanaBridge() {
         return;
     }
 
-    // Register EVM emitter
+    // Register EVM emitter (isDefaultPayload = true, EVM uses 18-byte default payload)
     console.log(`\n  Registering EVM emitter (chain ${CHAIN_ID_ARBITRUM_SEPOLIA})...`);
     const evmEmitterBytes = MessageBridgeClient.evmAddressToWormhole(EVM_BRIDGE_ADDRESS!);
 
@@ -213,11 +213,11 @@ async function configureSolanaBridge() {
     if (evmEmitter && Buffer.from(evmEmitter.address).equals(Buffer.from(evmEmitterBytes))) {
         console.log("    EVM emitter already registered");
     } else {
-        const sig = await client.registerEmitter(owner, CHAIN_ID_ARBITRUM_SEPOLIA, evmEmitterBytes);
+        const sig = await client.registerEmitter(owner, CHAIN_ID_ARBITRUM_SEPOLIA, evmEmitterBytes, true); // true = default payload
         console.log(`    Registered! Signature: ${sig}`);
     }
 
-    // Register Aztec emitter
+    // Register Aztec emitter (isDefaultPayload = false, Aztec uses 50-byte payload with txId)
     console.log(`\n  Registering Aztec emitter (chain ${CHAIN_ID_AZTEC})...`);
     const aztecEmitterBytes = MessageBridgeClient.aztecAddressToWormhole(AZTEC_WORMHOLE_ADDRESS!);
 
@@ -225,7 +225,7 @@ async function configureSolanaBridge() {
     if (aztecEmitter && Buffer.from(aztecEmitter.address).equals(Buffer.from(aztecEmitterBytes))) {
         console.log("    Aztec emitter already registered");
     } else {
-        const sig = await client.registerEmitter(owner, CHAIN_ID_AZTEC, aztecEmitterBytes);
+        const sig = await client.registerEmitter(owner, CHAIN_ID_AZTEC, aztecEmitterBytes, false); // false = Aztec payload (50 bytes)
         console.log(`    Registered! Signature: ${sig}`);
     }
 

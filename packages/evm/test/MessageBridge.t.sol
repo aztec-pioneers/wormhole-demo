@@ -119,10 +119,10 @@ contract MessageBridgeTest is Test {
     }
 
     function test_Constructor() public view {
-        assertEq(address(bridge.wormhole()), address(mockWormhole));
-        assertEq(bridge.chainId(), WORMHOLE_CHAIN_ID);
-        assertEq(bridge.evmChainId(), block.chainid);
-        assertEq(bridge.consistency(), CONSISTENCY);
+        assertEq(address(bridge.WORMHOLE()), address(mockWormhole));
+        assertEq(bridge.CHAIN_ID(), WORMHOLE_CHAIN_ID);
+        assertEq(bridge.EVM_CHAIN_ID(), block.chainid);
+        assertEq(bridge.CONSISTENCY(), CONSISTENCY);
         assertEq(bridge.owner(), owner);
         assertEq(bridge.outboundNonce(), 0);
     }
@@ -154,25 +154,32 @@ contract MessageBridgeTest is Test {
         bridge.sendValue(56, 42);
     }
 
-    function test_RegisterEmitter() public {
+    function test_RegisterEmitter_Aztec() public {
         uint16 remoteChain = 56; // Aztec
         bytes32 emitterAddress = bytes32(uint256(0x1234));
 
-        bridge.registerEmitter(remoteChain, emitterAddress);
+        bridge.registerEmitter(remoteChain, emitterAddress, false); // Aztec uses non-default payload
         assertEq(bridge.registeredEmitters(remoteChain), emitterAddress);
+        assertEq(bridge.isDefaultPayload(remoteChain), false);
+    }
+
+    function test_RegisterEmitter_Solana() public {
+        uint16 remoteChain = 1; // Solana
+        bytes32 emitterAddress = bytes32(uint256(0x5678));
+
+        bridge.registerEmitter(remoteChain, emitterAddress, true); // Solana uses default payload
+        assertEq(bridge.registeredEmitters(remoteChain), emitterAddress);
+        assertEq(bridge.isDefaultPayload(remoteChain), true);
     }
 
     function test_RegisterEmitter_OnlyOwner() public {
         vm.prank(user);
         vm.expectRevert();
-        bridge.registerEmitter(56, bytes32(uint256(0x1234)));
+        bridge.registerEmitter(56, bytes32(uint256(0x1234)), false);
     }
 
-    function test_GetLastMessage_InitialState() public view {
-        (uint8 value, uint16 fromChain, bytes32 sender) = bridge.getLastMessage();
-        assertEq(value, 0);
-        assertEq(fromChain, 0);
-        assertEq(sender, bytes32(0));
+    function test_CurrentValue_InitialState() public view {
+        assertEq(bridge.currentValue(), 0);
     }
 
     function test_TransferOwnership() public {

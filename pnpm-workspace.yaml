@@ -1,4 +1,4 @@
 packages:
   - 'packages/aztec'
-  - 'packages/relayer'
+  - 'packages/aztec-vaa-service'
   - 'packages/solana/ts'

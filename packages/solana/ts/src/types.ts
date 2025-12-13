@@ -20,6 +20,8 @@ export interface Config {
 export interface ForeignEmitter {
     chainId: number;
     address: Uint8Array; // 32 bytes
+    /** true = default 18-byte payload (Solana/EVM), false = Aztec 50-byte payload (with txId) */
+    isDefaultPayload: boolean;
 }
 
 /**

@@ -9,14 +9,21 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title MessageBridge
- * @dev Cross-chain messaging bridge using Wormhole for Aztec <-> EVM communication
+ * @dev Cross-chain messaging bridge using Wormhole for multi-chain communication
  *
- * This contract runs on Arbitrum Sepolia and receives cross-chain messages from Aztec.
+ * This contract runs on Arbitrum Sepolia and receives cross-chain messages from
+ * multiple sources (Aztec, Solana, other EVMs).
  *
- * Aztec Guardian Payload Structure (after zero-stripping and byte reversal):
- *   - Bytes 0-31:  txId (32 bytes, added by guardian)
+ * Supports two payload formats based on registered emitter type:
+ *
+ * Aztec Payload (50 bytes, isDefaultPayload=false):
+ *   - Bytes 0-31:  txId (32 bytes, added by Aztec Guardian)
  *   - Bytes 32-33: destinationChainId (big-endian)
  *   - Bytes 34-49: value (uint128, big-endian)
+ *
+ * Default Payload (18 bytes, isDefaultPayload=true):
+ *   - Bytes 0-1:   destinationChainId (big-endian)
+ *   - Bytes 2-17:  value (uint128, big-endian)
  */
 contract MessageBridge is Ownable {
     using BytesLib for bytes;
@@ -40,9 +47,14 @@ contract MessageBridge is Ownable {
     // Registered emitters: remoteChainId => emitterAddress (one emitter per chain)
     mapping(uint16 => bytes32) public registeredEmitters;
 
-    // Processed messages for replay protection: txId => value
-    // Non-zero value means processed
+    // Processed messages for replay protection
+    // For Aztec: nullifiers[keccak256(txId)]
+    // For default: nullifiers[keccak256(emitterChainId, sequence)]
     mapping(bytes32 => bool) public nullifiers;
+
+    // Track which emitters use default (18-byte) vs Aztec (50-byte) payload format
+    // true = default payload (Solana, EVM), false = Aztec payload (with txId)
+    mapping(uint16 => bool) public isDefaultPayload;
 
     // Nonce for outbound messages
     uint32 public outboundNonce;
@@ -105,10 +117,16 @@ contract MessageBridge is Ownable {
      * @notice Register an emitter from a remote chain
      * @param remoteChainId Wormhole chain ID of the remote chain (e.g., 56 for Aztec)
      * @param emitterAddress Emitter address as bytes32
+     * @param _isDefaultPayload true for default 18-byte payloads (Solana/EVM), false for Aztec 50-byte payloads
      */
-    function registerEmitter(uint16 remoteChainId, bytes32 emitterAddress) external onlyOwner {
+    function registerEmitter(
+        uint16 remoteChainId,
+        bytes32 emitterAddress,
+        bool _isDefaultPayload
+    ) external onlyOwner {
         require(emitterAddress != bytes32(0), "Emitter cannot be zero");
         registeredEmitters[remoteChainId] = emitterAddress;
+        isDefaultPayload[remoteChainId] = _isDefaultPayload;
         emit EmitterRegistered(remoteChainId, emitterAddress);
     }
 
@@ -157,20 +175,32 @@ contract MessageBridge is Ownable {
     // ============================================================================
 
     /**
-     * @notice Verifies a VAA and processes the message
-     * @param encodedVm A byte array containing a VAA signed by the guardians
+     * @notice Receive and process a cross-chain message
+     * @param encodedVm The encoded Wormhole VAA
+     *
+     * Routes to appropriate processor based on registered emitter type:
+     * - isDefaultPayload[chainId] == true: Default format (18 bytes from Solana/EVM)
+     * - isDefaultPayload[chainId] == false: Aztec format (50 bytes with txId)
      */
     function receiveValue(bytes memory encodedVm) external notFork {
-        bytes memory payload = _verify(encodedVm);
-        _processPayload(payload);
+        IWormhole.VM memory vm = _verify(encodedVm);
+
+        if (isDefaultPayload[vm.emitterChainId]) {
+            // Default payload from Solana/EVM: [chainId(2) | value(16)]
+            _processDefaultPayload(vm.payload, vm.emitterChainId, vm.sequence);
+        } else {
+            // Aztec payload: [txId(32) | chainId(2) | value(16)]
+            _processAztecPayload(vm.payload);
+        }
     }
 
     /**
      * @dev Internal verification function for VAAs
+     * @return vm The parsed and verified VAA
      */
     function _verify(
         bytes memory encodedVm
-    ) internal view returns (bytes memory) {
+    ) internal view returns (IWormhole.VM memory) {
         (IWormhole.VM memory vm, bool valid, string memory reason) = WORMHOLE
             .parseAndVerifyVM(encodedVm);
 
@@ -180,16 +210,16 @@ contract MessageBridge is Ownable {
             "Invalid emitter: source not recognized"
         );
 
-        return vm.payload;
+        return vm;
     }
 
-    function _processPayload(bytes memory payload) internal {
-        // Actual payload structure from Aztec Guardian (after zero-stripping and reversal):
-        // Bytes 0-31:  txId (32 bytes, added by guardian)
-        // Bytes 32-33: destinationChainId (big-endian)
-        // Bytes 34-49: value (uint128, big-endian)
-        // Minimum: 50 bytes
-        require(payload.length >= 50, "Payload too short");
+    /**
+     * @dev Process Aztec payload (50 bytes with txId prepended by Guardian)
+     * Format: [txId(32) | destinationChainId(2) | value(16)]
+     * Aztec Guardian prepends the source transaction ID for replay protection
+     */
+    function _processAztecPayload(bytes memory payload) internal {
+        require(payload.length >= 50, "Aztec payload too short");
 
         // Extract txId from first 32 bytes (added by Aztec Guardian)
         bytes32 txId;
@@ -198,20 +228,43 @@ contract MessageBridge is Ownable {
         }
         require(txId != bytes32(0), "Invalid txId");
 
-        // Check if already processed & nullify
-        require(nullifiers[txId] == false, "Already processed");
-        nullifiers[txId] = true;
-
-        // destinationChainId (2 bytes, big-endian) - not used but parsed for validation
-        // uint16 destinationChainId = (uint16(uint8(payload[32])) << 8) |
-        //     uint16(uint8(payload[33]));
+        // Replay protection: hash txId for consistency with default format
+        bytes32 nullifier = keccak256(abi.encodePacked(txId));
+        require(!nullifiers[nullifier], "Already processed");
+        nullifiers[nullifier] = true;
 
         // Value is at bytes 34-49 (16 bytes, big-endian)
         uint128 value;
         assembly {
-            // Load 32 bytes starting at payload + 32 (length prefix) + 34 (offset)
-            // Then shift right by 128 bits (16 bytes) to get the uint128
             value := shr(128, mload(add(add(payload, 32), 34)))
+        }
+
+        currentValue = value;
+        emit ValueReceived(value);
+    }
+
+    /**
+     * @dev Process default payload (18 bytes without txId)
+     * Format: [destinationChainId(2) | value(16)]
+     * Used for chains that don't add txId (Solana, other EVMs)
+     * Uses emitterChainId + sequence as replay protection key
+     */
+    function _processDefaultPayload(
+        bytes memory payload,
+        uint16 emitterChainId,
+        uint64 sequence
+    ) internal {
+        require(payload.length >= 18, "Default payload too short");
+
+        // Replay protection: hash chain + sequence
+        bytes32 nullifier = keccak256(abi.encodePacked(emitterChainId, sequence));
+        require(!nullifiers[nullifier], "Already processed");
+        nullifiers[nullifier] = true;
+
+        // Value is at bytes 2-17 (16 bytes, big-endian)
+        uint128 value;
+        assembly {
+            value := shr(128, mload(add(add(payload, 32), 2)))
         }
 
         currentValue = value;

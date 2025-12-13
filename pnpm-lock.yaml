@@ -83,6 +83,49 @@ importers:
         specifier: ^8.3.5
         version: 8.5.1(tsx@4.21.0)(typescript@5.9.3)
 
+  packages/aztec-vaa-service:
+    dependencies:
+      '@aztec-wormhole-demo/aztec-contracts':
+        specifier: workspace:*
+        version: link:../aztec
+      '@aztec/aztec.js':
+        specifier: 3.0.0-devnet.5
+        version: 3.0.0-devnet.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@aztec/foundation':
+        specifier: 3.0.0-devnet.5
+        version: 3.0.0-devnet.5
+      '@aztec/kv-store':
+        specifier: 3.0.0-devnet.5
+        version: 3.0.0-devnet.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@aztec/pxe':
+        specifier: 3.0.0-devnet.5
+        version: 3.0.0-devnet.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@aztec/stdlib':
+        specifier: 3.0.0-devnet.5
+        version: 3.0.0-devnet.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@aztec/test-wallet':
+        specifier: 3.0.0-devnet.5
+        version: 3.0.0-devnet.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.2
+      dotenv:
+        specifier: ^16.4.7
+        version: 16.6.1
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
+    devDependencies:
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   packages/relayer: {}
 
   packages/solana/ts:

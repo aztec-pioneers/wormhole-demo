@@ -60,10 +60,16 @@ pub mod message_bridge {
     /// Register a foreign emitter from another chain
     ///
     /// Only the owner can register emitters. Each chain can have one emitter.
+    ///
+    /// # Arguments
+    /// * `chain_id` - Wormhole chain ID of the foreign chain
+    /// * `emitter_address` - Emitter address on the foreign chain (32 bytes)
+    /// * `is_default_payload` - true for default 18-byte payload (Solana/EVM), false for Aztec 50-byte payload
     pub fn register_emitter(
         ctx: Context<RegisterEmitter>,
         chain_id: u16,
         emitter_address: [u8; 32],
+        is_default_payload: bool,
     ) -> Result<()> {
         // Cannot register Solana as a foreign emitter
         require!(
@@ -80,9 +86,11 @@ pub mod message_bridge {
         let foreign_emitter = &mut ctx.accounts.foreign_emitter;
         foreign_emitter.chain_id = chain_id;
         foreign_emitter.address = emitter_address;
+        foreign_emitter.is_default_payload = is_default_payload;
 
         msg!("Registered emitter for chain {}", chain_id);
         msg!("Address: {:?}", emitter_address);
+        msg!("Is default payload: {}", is_default_payload);
 
         Ok(())
     }
@@ -234,20 +242,14 @@ pub mod message_bridge {
         // Get payload (after consistency_level at offset 58)
         let payload = &vaa_data[59..];
 
-        // Decode the message (with txId prefix from Aztec Guardian)
-        let value = if payload.len() >= InboundMessage::PAYLOAD_SIZE {
-            // Full message with txId (from Aztec)
-            let inbound = InboundMessage::decode(payload)?;
-
-            // Validate destination chain
+        // Decode the message based on registered emitter type
+        // is_default_payload: true = 18-byte (Solana/EVM), false = 50-byte (Aztec with txId)
+        let value = if foreign_emitter.is_default_payload {
+            // Default payload: [chainId(2) | value(16)]
             require!(
-                inbound.destination_chain_id == config.chain_id,
-                MessageBridgeError::InvalidDestinationChainId
+                payload.len() >= ValueMessage::PAYLOAD_SIZE,
+                MessageBridgeError::InvalidPayload
             );
-
-            inbound.value
-        } else if payload.len() >= ValueMessage::PAYLOAD_SIZE {
-            // Simple message without txId (from EVM)
             let msg = ValueMessage::decode(payload)?;
 
             // Validate destination chain
@@ -258,7 +260,20 @@ pub mod message_bridge {
 
             msg.value
         } else {
-            return Err(MessageBridgeError::InvalidPayload.into());
+            // Aztec payload: [txId(32) | chainId(2) | value(16)]
+            require!(
+                payload.len() >= InboundMessage::PAYLOAD_SIZE,
+                MessageBridgeError::InvalidPayload
+            );
+            let inbound = InboundMessage::decode(payload)?;
+
+            // Validate destination chain
+            require!(
+                inbound.destination_chain_id == config.chain_id,
+                MessageBridgeError::InvalidDestinationChainId
+            );
+
+            inbound.value
         };
 
         // Update current value

@@ -17,11 +17,10 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 # Copy all workspace package.json files (pnpm needs all packages present)
 COPY packages/aztec/package.json packages/aztec/
 COPY packages/aztec-vaa-service/package.json packages/aztec-vaa-service/
-COPY packages/evm/package.json packages/evm/
-COPY packages/relayer/package.json packages/relayer/
 
 # Install dependencies (only for the packages we need)
-RUN pnpm install --frozen-lockfile --filter @aztec-wormhole-demo/aztec-vaa-service...
+# Use --ignore-scripts to skip root postinstall (git/forge commands not needed here)
+RUN pnpm install --frozen-lockfile --ignore-scripts --filter @aztec-wormhole-demo/aztec-vaa-service...
 
 # Copy the aztec-contracts package source (our dependency)
 COPY packages/aztec/ts/ packages/aztec/ts/

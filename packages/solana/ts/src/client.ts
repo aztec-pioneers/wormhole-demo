@@ -195,11 +195,17 @@ export class MessageBridgeClient {
 
     /**
      * Register a foreign emitter from another chain
+     *
+     * @param owner - The owner keypair (must be program owner)
+     * @param chainId - Wormhole chain ID of the foreign chain
+     * @param emitterAddress - Emitter address (32 bytes)
+     * @param isDefaultPayload - true for default 18-byte payload (Solana/EVM), false for Aztec 50-byte payload
      */
     async registerEmitter(
         owner: Keypair,
         chainId: number,
-        emitterAddress: Uint8Array
+        emitterAddress: Uint8Array,
+        isDefaultPayload: boolean
     ): Promise<string> {
         if (emitterAddress.length !== 32) {
             throw new Error("Emitter address must be 32 bytes");
@@ -211,11 +217,12 @@ export class MessageBridgeClient {
         const pdas = this.getPDAs();
         const [foreignEmitter] = this.getForeignEmitterPDA(chainId);
 
-        // Build instruction data: discriminator + chain_id (u16) + address (32 bytes)
-        const data = Buffer.alloc(8 + 2 + 32);
+        // Build instruction data: discriminator + chain_id (u16) + address (32 bytes) + is_default_payload (bool)
+        const data = Buffer.alloc(8 + 2 + 32 + 1);
         DISCRIMINATORS.registerEmitter.copy(data, 0);
         data.writeUInt16LE(chainId, 8);
         Buffer.from(emitterAddress).copy(data, 10);
+        data.writeUInt8(isDefaultPayload ? 1 : 0, 42);
 
         const ix = new TransactionInstruction({
             keys: [
@@ -400,10 +407,12 @@ export class MessageBridgeClient {
         if (!accountInfo) return null;
 
         // Parse foreign emitter (skip 8-byte discriminator)
+        // Layout: chain_id (2) + address (32) + is_default_payload (1)
         const data = accountInfo.data;
         return {
             chainId: data.readUInt16LE(8),
             address: new Uint8Array(data.subarray(10, 42)),
+            isDefaultPayload: data.readUInt8(42) === 1,
         };
     }
 
