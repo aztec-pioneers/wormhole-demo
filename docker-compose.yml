@@ -76,6 +76,7 @@ services:
       dockerfile: Dockerfile
     command:
       - aztec
+      - --aztec-target-contract=${AZTEC_BRIDGE_ADDRESS}
       # Default: --chain-ids=10003,1 (Arbitrum, Solana)
     environment:
       - WORMHOLE_RELAYER_SPY_RPC_HOST=wormhole-spy:7073
