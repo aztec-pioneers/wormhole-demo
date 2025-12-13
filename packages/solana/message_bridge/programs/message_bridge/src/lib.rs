@@ -11,7 +11,7 @@ pub use error::*;
 pub use message::*;
 pub use state::*;
 
-declare_id!("6bRRppuQMAByTh721kEhdNTwueEgHRoNdcCMRJEmaABo");
+declare_id!("uFY3R4H6ro9yW4NaCENbRN6gq2VZZQpF1NA5Szxp1Mc");
 
 /// Wormhole chain ID for Solana
 pub const SOLANA_CHAIN_ID: u16 = 1;
@@ -112,25 +112,39 @@ pub mod message_bridge {
         let config = &mut ctx.accounts.config;
         let wormhole_emitter = &ctx.accounts.wormhole_emitter;
 
-        // Get Wormhole fee from bridge data account
-        // BridgeData layout has fee at offset 12 (4 bytes each for: guardian_set_index, guardian_set_expiry, fee)
-        // Actually fee is a u64 at a specific offset - for simplicity we'll parse it
-        let bridge_data = ctx.accounts.wormhole_bridge.try_borrow_data()?;
-        // Fee is stored as u64 in lamports (offset varies by version, typically after guardian set info)
-        // For now, we'll just ensure payer has some lamports and let Wormhole handle fee validation
-        let fee = if bridge_data.len() >= 20 {
-            // Try to read fee from expected location (this may need adjustment based on actual layout)
-            u64::from_le_bytes(bridge_data[12..20].try_into().unwrap_or([0u8; 8]))
-        } else {
-            0
-        };
+        // Get Wormhole fee from bridge data account and transfer to fee collector
+        // BridgeData layout:
+        //   guardian_set_index: u32 (offset 0, 4 bytes)
+        //   last_lamports: u64 (offset 4, 8 bytes)
+        //   config.guardian_set_expiration_time: u32 (offset 12, 4 bytes)
+        //   config.fee: u64 (offset 16, 8 bytes)
+        {
+            let bridge_data = ctx.accounts.wormhole_bridge.try_borrow_data()?;
+            let fee = if bridge_data.len() >= 24 {
+                u64::from_le_bytes(bridge_data[16..24].try_into().unwrap_or([0u8; 8]))
+            } else {
+                0
+            };
+            drop(bridge_data); // Explicitly drop before transfer
 
-        // Check payer has enough lamports for fee
-        if fee > 0 {
-            require!(
-                ctx.accounts.payer.lamports() >= fee,
-                MessageBridgeError::InsufficientFee
-            );
+            if fee > 0 {
+                require!(
+                    ctx.accounts.payer.lamports() >= fee,
+                    MessageBridgeError::InsufficientFee
+                );
+
+                // Transfer fee to Wormhole fee collector
+                anchor_lang::system_program::transfer(
+                    CpiContext::new(
+                        ctx.accounts.system_program.to_account_info(),
+                        anchor_lang::system_program::Transfer {
+                            from: ctx.accounts.payer.to_account_info(),
+                            to: ctx.accounts.wormhole_fee_collector.to_account_info(),
+                        },
+                    ),
+                    fee,
+                )?;
+            }
         }
 
         // Encode the payload
@@ -140,10 +154,21 @@ pub mod message_bridge {
         }
         .encode();
 
-        // Post message to Wormhole
+        // Get nonce before mutable operations
+        let nonce = config.nonce;
+        let nonce_bytes = nonce.to_le_bytes();
+
+        // Post message to Wormhole - need to sign with both emitter and message PDAs
         let emitter_seeds: &[&[u8]] = &[
             WormholeEmitter::SEED_PREFIX,
             &[wormhole_emitter.bump],
+        ];
+
+        let message_bump = ctx.bumps.wormhole_message;
+        let message_seeds: &[&[u8]] = &[
+            b"message",
+            &nonce_bytes,
+            &[message_bump],
         ];
 
         wormhole::post_message(
@@ -160,9 +185,9 @@ pub mod message_bridge {
                     rent: ctx.accounts.rent.to_account_info(),
                     system_program: ctx.accounts.system_program.to_account_info(),
                 },
-                &[emitter_seeds],
+                &[emitter_seeds, message_seeds],
             ),
-            config.nonce,
+            nonce,
             payload,
             wormhole::Finality::Confirmed,
         )?;
