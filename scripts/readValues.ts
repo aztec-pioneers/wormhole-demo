@@ -105,7 +105,7 @@ async function readSolanaBridge() {
 
         console.log("\n=== Solana Bridge (Devnet) ===");
         console.log(`  Program: ${SOLANA_BRIDGE_PROGRAM_ID}`);
-        console.log(`  Current value: ${currentValue !== null ? currentValue : "Not set"}`);
+        console.log(`  Current value: ${currentValue !== null ? currentValue.value.toString() : "Not set"}`);
     } catch (err) {
         console.log("\n=== Solana Bridge (Devnet) ===");
         console.log(`  Error reading: ${err}`);

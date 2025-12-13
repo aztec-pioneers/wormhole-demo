@@ -196,12 +196,16 @@ This document outlines the full integration plan for adding Solana support to th
 ## Phase 5: Deployment Scripts
 
 - [x] **5.1** Create `scripts/deploySolana.ts`
-  - Deploy MessageBridge program to devnet
-  - Initialize bridge (Config, CurrentValue, WormholeEmitter PDAs)
-  - Initialize counter for testing
-  - Save program ID to `.env`
-  - Print emitter address for registration
-  - **Note: Previous deployment closed to recover rent; awaiting redeploy**
+  - Checks for existing deployment and closes to recover rent
+  - Generates new program keypair
+  - Updates lib.rs and Anchor.toml with new program ID
+  - Builds and deploys to devnet
+  - Initializes bridge (Config, CurrentValue, WormholeEmitter PDAs)
+  - Initializes counter for testing
+  - Saves program ID to `.env`
+  - Prints emitter address for registration
+  - **Deployed: `3fUukpbbRBydKXKYwpXojTtQSWxFbQ5EB7DmoVsZqJ2c`**
+  - **Note**: Uses `wormhole-anchor-sdk` with `solana-devnet` feature (Wormhole: `3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5`)
 
 - [x] **5.2** Create `scripts/testSolanaCounter.ts`
   - Test basic contract access on devnet
