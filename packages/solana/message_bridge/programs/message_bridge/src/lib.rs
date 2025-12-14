@@ -11,7 +11,7 @@ pub use error::*;
 pub use message::*;
 pub use state::*;
 
-declare_id!("7sUZQGRVwV7Cps1zVaASJAJ1N3rgijtX8SbYNt1pej3q");
+declare_id!("6eLf6j8YhfhB95kYPRpeUDdF1JWTdECNnsKmUpxwdAjp");
 
 /// Wormhole chain ID for Solana
 pub const SOLANA_CHAIN_ID: u16 = 1;

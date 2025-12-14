@@ -1,6 +1,6 @@
 use aztec::macros::aztec;
 
-pub mod config;
+pub mod types;
 pub mod utils;
 
 #[aztec]
@@ -14,7 +14,7 @@ pub contract MessageBridge {
         state_vars::{map::Map, public_mutable::PublicMutable, public_immutable::PublicImmutable},
     };
     use crate::{
-        config::Config,
+        types::{config::Config, emitter::Emitter},
         utils::vaa::{encode_message_payload, decode_vaa},
     };
     use wormhole::Wormhole;
@@ -33,7 +33,7 @@ pub contract MessageBridge {
 
         // Registered emitters
         // chain id => emitter address (one emitter per chain)
-        registered_emitters: Map<u16, PublicMutable<[u8; 32], Context>, Context>,
+        registered_emitters: Map<u16, PublicImmutable<Emitter, Context>, Context>,
 
         // currently stored value
         current_value: PublicMutable<u128, Context>,
@@ -90,7 +90,7 @@ pub contract MessageBridge {
                 let emitter_address = emitter_addresses.get_unchecked(i);
                 storage.registered_emitters
                     .at(source_chain_id)
-                    .write(emitter_address);
+                    .initialize(Emitter { address: emitter_address });
             }
         }
     }
@@ -190,7 +190,7 @@ pub contract MessageBridge {
         // Validate emitter from VAA envelope (not sender from payload)
         let registered_emitter = storage.registered_emitters
             .at(emitter_chain_id)
-            .read();
+            .read().address;
         assert(registered_emitter == emitter_address, "Emitter not registered");
 
         // Update state with received value
@@ -215,7 +215,7 @@ pub contract MessageBridge {
     unconstrained fn is_emitter_registered(chain_id: u16, emitter_address: [u8; 32]) -> bool {
         let registered_emitter = storage.registered_emitters
             .at(chain_id)
-            .read();
+            .read().address;
         registered_emitter == emitter_address
     }
 
@@ -223,7 +223,7 @@ pub contract MessageBridge {
     unconstrained fn get_registered_emitter(chain_id: u16) -> [u8; 32] {
         storage.registered_emitters
             .at(chain_id)
-            .read()
+            .read().address
     }
 
     #[external("utility")]
