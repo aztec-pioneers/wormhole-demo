@@ -10,7 +10,7 @@ import {
     hexToBytes32Array,
     addressToBytes32,
 } from "@aztec-wormhole-demo/shared";
-import { MessageBridgeContract, MessageBridgeContractArtifact } from "./artifacts/index.js";
+import { MessageBridgeContract, MessageBridgeContractArtifact, WormholeContractArtifact } from "./artifacts/index.js";
 
 export interface AztecMessageBridgeClientOptions {
     /** Aztec node client */
@@ -62,11 +62,19 @@ export class AztecMessageBridgeClient implements BaseMessageBridgeReceiver {
      * Create a new AztecMessageBridgeClient
      */
     static async create(options: AztecMessageBridgeClientOptions): Promise<AztecMessageBridgeClient> {
-        const instance = await options.node.getContract(options.bridgeAddress);
-        if (!instance) {
+        // Register Wormhole contract (needed for cross-chain calls)
+        const wormholeInstance = await options.node.getContract(options.wormholeAddress);
+        if (!wormholeInstance) {
+            throw new Error(`Wormhole contract not found at ${options.wormholeAddress}`);
+        }
+        await options.wallet.registerContract(wormholeInstance, WormholeContractArtifact);
+
+        // Register MessageBridge contract
+        const bridgeInstance = await options.node.getContract(options.bridgeAddress);
+        if (!bridgeInstance) {
             throw new Error(`Aztec bridge contract not found at ${options.bridgeAddress}`);
         }
-        await options.wallet.registerContract(instance, MessageBridgeContractArtifact);
+        await options.wallet.registerContract(bridgeInstance, MessageBridgeContractArtifact);
 
         const bridge = await MessageBridgeContract.at(options.bridgeAddress, options.wallet);
 
