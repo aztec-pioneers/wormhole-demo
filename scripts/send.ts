@@ -12,10 +12,10 @@ import { createSolanaClient, loadKeypair } from "./utils/solana";
 import { getAddress } from "viem";
 import { Fr } from "@aztec/aztec.js/fields";
 import {
-    CHAIN_ID_SOLANA,
-    CHAIN_ID_ARBITRUM_SEPOLIA,
-    CHAIN_ID_BASE_SEPOLIA,
-    CHAIN_ID_AZTEC,
+    WORMHOLE_CHAIN_ID_SOLANA,
+    WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA,
+    WORMHOLE_CHAIN_ID_BASE_SEPOLIA,
+    WORMHOLE_CHAIN_ID_AZTEC,
 } from "@aztec-wormhole-demo/solana-sdk";
 
 // Valid chain names
@@ -24,10 +24,10 @@ type ChainName = typeof VALID_CHAINS[number];
 
 // Chain name to Wormhole chain ID mapping
 const CHAIN_IDS: Record<ChainName, number> = {
-    arbitrum: CHAIN_ID_ARBITRUM_SEPOLIA,
-    base: CHAIN_ID_BASE_SEPOLIA,
-    solana: CHAIN_ID_SOLANA,
-    aztec: CHAIN_ID_AZTEC,
+    arbitrum: WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA,
+    base: WORMHOLE_CHAIN_ID_BASE_SEPOLIA,
+    solana: WORMHOLE_CHAIN_ID_SOLANA,
+    aztec: WORMHOLE_CHAIN_ID_AZTEC,
 };
 
 // Environment variables
@@ -154,19 +154,31 @@ function parseArgs(): { value: bigint; from: ChainName; to: ChainName; mode: "pr
 // SEND FROM EVM (ARBITRUM or BASE)
 // ============================================================
 
-async function sendFromEvm(
-    chainName: EvmChainName,
-    rpcUrl: string,
-    bridgeAddress: string,
-    displayName: string,
-    explorerUrl: string,
-    destinationChainId: number,
-    value: bigint,
-    destinationName: string
-) {
-    if (!EVM_PRIVATE_KEY) throw new Error("EVM_PRIVATE_KEY not set in .env");
+const EVM_CHAIN_CONFIGS = {
+    arbitrum: {
+        rpcEnvVar: "ARBITRUM_RPC_URL",
+        bridgeEnvVar: "ARBITRUM_BRIDGE_ADDRESS",
+        displayName: "Arbitrum Sepolia",
+        explorerUrl: "https://sepolia.arbiscan.io",
+    },
+    base: {
+        rpcEnvVar: "BASE_RPC_URL",
+        bridgeEnvVar: "BASE_BRIDGE_ADDRESS",
+        displayName: "Base Sepolia",
+        explorerUrl: "https://sepolia.basescan.org",
+    },
+} as const;
 
-    console.log(`\nConnecting to ${displayName}...`);
+async function sendFromEvm(chainName: EvmChainName, destinationChainId: number, value: bigint, destinationName: string) {
+    const config = EVM_CHAIN_CONFIGS[chainName];
+    const rpcUrl = process.env[config.rpcEnvVar];
+    const bridgeAddress = process.env[config.bridgeEnvVar];
+
+    if (!EVM_PRIVATE_KEY) throw new Error("EVM_PRIVATE_KEY not set in .env");
+    if (!rpcUrl) throw new Error(`${config.rpcEnvVar} not set in .env`);
+    if (!bridgeAddress) throw new Error(`${config.bridgeEnvVar} not set in .env`);
+
+    console.log(`\nConnecting to ${config.displayName}...`);
     const { account, publicClient, walletClient } = createEvmClients(rpcUrl, EVM_PRIVATE_KEY, chainName);
     const bridge = getAddress(bridgeAddress);
 
@@ -204,40 +216,8 @@ async function sendFromEvm(
     console.log(`  Confirmed in block ${receipt.blockNumber}`);
 
     console.log(`\nExplorer links:`);
-    console.log(`  ${displayName}: ${explorerUrl}/tx/${hash}`);
+    console.log(`  ${config.displayName}: ${config.explorerUrl}/tx/${hash}`);
     console.log(`  Wormhole: https://wormholescan.io/#/tx/${hash}?network=Testnet`);
-}
-
-async function sendFromArbitrum(destinationChainId: number, value: bigint, destinationName: string) {
-    if (!ARBITRUM_RPC_URL) throw new Error("ARBITRUM_RPC_URL not set in .env");
-    if (!ARBITRUM_BRIDGE_ADDRESS) throw new Error("ARBITRUM_BRIDGE_ADDRESS not set in .env");
-
-    await sendFromEvm(
-        "arbitrum",
-        ARBITRUM_RPC_URL,
-        ARBITRUM_BRIDGE_ADDRESS,
-        "Arbitrum Sepolia",
-        "https://sepolia.arbiscan.io",
-        destinationChainId,
-        value,
-        destinationName
-    );
-}
-
-async function sendFromBase(destinationChainId: number, value: bigint, destinationName: string) {
-    if (!BASE_RPC_URL) throw new Error("BASE_RPC_URL not set in .env");
-    if (!BASE_BRIDGE_ADDRESS) throw new Error("BASE_BRIDGE_ADDRESS not set in .env");
-
-    await sendFromEvm(
-        "base",
-        BASE_RPC_URL,
-        BASE_BRIDGE_ADDRESS,
-        "Base Sepolia",
-        "https://sepolia.basescan.org",
-        destinationChainId,
-        value,
-        destinationName
-    );
 }
 
 // ============================================================
@@ -346,10 +326,8 @@ async function main() {
 
     switch (from) {
         case "arbitrum":
-            await sendFromArbitrum(destinationChainId, value, to);
-            break;
         case "base":
-            await sendFromBase(destinationChainId, value, to);
+            await sendFromEvm(from, destinationChainId, value, to);
             break;
         case "aztec":
             await sendFromAztec(destinationChainId, value, to, mode);

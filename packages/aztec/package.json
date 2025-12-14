@@ -29,6 +29,7 @@
     }
   },
   "dependencies": {
+    "@aztec-wormhole-demo/shared": "workspace:*",
     "@aztec/accounts": "3.0.0-devnet.5",
     "@aztec/aztec.js": "3.0.0-devnet.5",
     "@aztec/constants": "3.0.0-devnet.5",

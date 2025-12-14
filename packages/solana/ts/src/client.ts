@@ -21,7 +21,7 @@ import {
     SEED_WORMHOLE_SEQUENCE,
     WORMHOLE_PROGRAM_ID,
     DISCRIMINATORS,
-    CHAIN_ID_SOLANA,
+    WORMHOLE_CHAIN_ID_SOLANA,
 } from "./constants.js";
 import type {
     Config,
@@ -210,7 +210,7 @@ export class MessageBridgeClient {
         if (emitterAddress.length !== 32) {
             throw new Error("Emitter address must be 32 bytes");
         }
-        if (chainId === CHAIN_ID_SOLANA) {
+        if (chainId === WORMHOLE_CHAIN_ID_SOLANA) {
             throw new Error("Cannot register Solana as a foreign emitter");
         }
 
@@ -236,6 +236,57 @@ export class MessageBridgeClient {
         });
 
         const tx = new Transaction().add(ix);
+        return sendAndConfirmTransaction(this.connection, tx, [owner]);
+    }
+
+    /**
+     * Register multiple foreign emitters in a single transaction
+     *
+     * @param owner - The owner keypair (must be program owner)
+     * @param emitters - Array of emitter configurations
+     */
+    async registerEmitters(
+        owner: Keypair,
+        emitters: Array<{ chainId: number; emitterAddress: Uint8Array; isDefaultPayload: boolean }>
+    ): Promise<string> {
+        if (emitters.length === 0) {
+            throw new Error("Must provide at least one emitter to register");
+        }
+
+        const pdas = this.getPDAs();
+        const tx = new Transaction();
+
+        for (const emitter of emitters) {
+            if (emitter.emitterAddress.length !== 32) {
+                throw new Error(`Emitter address for chain ${emitter.chainId} must be 32 bytes`);
+            }
+            if (emitter.chainId === WORMHOLE_CHAIN_ID_SOLANA) {
+                throw new Error("Cannot register Solana as a foreign emitter");
+            }
+
+            const [foreignEmitter] = this.getForeignEmitterPDA(emitter.chainId);
+
+            // Build instruction data: discriminator + chain_id (u16) + address (32 bytes) + is_default_payload (bool)
+            const data = Buffer.alloc(8 + 2 + 32 + 1);
+            DISCRIMINATORS.registerEmitter.copy(data, 0);
+            data.writeUInt16LE(emitter.chainId, 8);
+            Buffer.from(emitter.emitterAddress).copy(data, 10);
+            data.writeUInt8(emitter.isDefaultPayload ? 1 : 0, 42);
+
+            const ix = new TransactionInstruction({
+                keys: [
+                    { pubkey: owner.publicKey, isSigner: true, isWritable: true },
+                    { pubkey: pdas.config, isSigner: false, isWritable: false },
+                    { pubkey: foreignEmitter, isSigner: false, isWritable: true },
+                    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+                ],
+                programId: this.programId,
+                data,
+            });
+
+            tx.add(ix);
+        }
+
         return sendAndConfirmTransaction(this.connection, tx, [owner]);
     }
 

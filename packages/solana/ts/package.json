@@ -16,6 +16,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@aztec-wormhole-demo/shared": "workspace:*",
     "@certusone/wormhole-sdk": "^0.10.18",
     "@coral-xyz/anchor": "^0.30.1",
     "@solana/web3.js": "^1.95.0"

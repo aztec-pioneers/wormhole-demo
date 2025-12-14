@@ -130,6 +130,31 @@ contract MessageBridge is Ownable {
         emit EmitterRegistered(remoteChainId, emitterAddress);
     }
 
+    /**
+     * @notice Register multiple emitters from remote chains in a single transaction
+     * @param remoteChainIds Array of Wormhole chain IDs
+     * @param emitterAddresses Array of emitter addresses as bytes32
+     * @param _isDefaultPayloads Array of payload type flags (true = 18-byte default, false = 50-byte Aztec)
+     */
+    function registerEmitters(
+        uint16[] calldata remoteChainIds,
+        bytes32[] calldata emitterAddresses,
+        bool[] calldata _isDefaultPayloads
+    ) external onlyOwner {
+        require(
+            remoteChainIds.length == emitterAddresses.length &&
+            remoteChainIds.length == _isDefaultPayloads.length,
+            "Array lengths must match"
+        );
+
+        for (uint256 i = 0; i < remoteChainIds.length; i++) {
+            require(emitterAddresses[i] != bytes32(0), "Emitter cannot be zero");
+            registeredEmitters[remoteChainIds[i]] = emitterAddresses[i];
+            isDefaultPayload[remoteChainIds[i]] = _isDefaultPayloads[i];
+            emit EmitterRegistered(remoteChainIds[i], emitterAddresses[i]);
+        }
+    }
+
     // ============================================================================
     // SEND VALUE (EVM -> Aztec)
     // ============================================================================

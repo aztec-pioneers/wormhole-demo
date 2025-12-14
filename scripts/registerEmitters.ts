@@ -11,12 +11,11 @@ import { loadAccount, getTestnetPxeConfig, testnetSendWaitOpts } from "./utils/a
 import { addressToBytes32, hexToBytes32Array } from "./utils/bytes";
 import { createEvmClients, MESSAGE_BRIDGE_ABI, EvmChainName } from "./utils/evm";
 import { createSolanaClient, loadKeypair, formatEmitterAddress } from "./utils/solana";
-import { AZTEC_WORMHOLE_CHAIN_ID, ARBITRUM_SEPOLIA_CHAIN_ID, BASE_SEPOLIA_CHAIN_ID } from "@aztec-wormhole-demo/aztec-contracts/constants";
 import {
-    CHAIN_ID_SOLANA,
-    CHAIN_ID_ARBITRUM_SEPOLIA,
-    CHAIN_ID_BASE_SEPOLIA,
-    CHAIN_ID_AZTEC,
+    WORMHOLE_CHAIN_ID_SOLANA,
+    WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA,
+    WORMHOLE_CHAIN_ID_BASE_SEPOLIA,
+    WORMHOLE_CHAIN_ID_AZTEC,
     MessageBridgeClient,
 } from "@aztec-wormhole-demo/solana-sdk";
 
@@ -75,33 +74,30 @@ async function configureEvmBridge(
         throw new Error(`Not owner of ${config.displayName} bridge. Owner: ${owner}, You: ${account.address}`);
     }
 
-    // Register Aztec emitter (isDefaultPayload = false, Aztec uses 50-byte payload with txId)
-    console.log(`\n  Registering Aztec emitter (chain ${AZTEC_WORMHOLE_CHAIN_ID})...`);
-    const aztecEmitterBytes32 = addressToBytes32(AZTEC_WORMHOLE_ADDRESS!);
+    // Collect emitters to register
+    const chainIds: number[] = [];
+    const emitterAddresses: `0x${string}`[] = [];
+    const isDefaultPayloads: boolean[] = [];
 
+    // Check Aztec emitter (isDefaultPayload = false, Aztec uses 50-byte payload with txId)
+    const aztecEmitterBytes32 = addressToBytes32(AZTEC_WORMHOLE_ADDRESS!);
     const aztecRegistered = await publicClient.readContract({
         address: evmBridgeAddress,
         abi: MESSAGE_BRIDGE_ABI,
         functionName: "registeredEmitters",
-        args: [AZTEC_WORMHOLE_CHAIN_ID],
+        args: [WORMHOLE_CHAIN_ID_AZTEC],
     }) as `0x${string}`;
 
     if (aztecRegistered.toLowerCase() === aztecEmitterBytes32.toLowerCase()) {
-        console.log("    Aztec emitter already registered");
+        console.log(`  Aztec emitter (chain ${WORMHOLE_CHAIN_ID_AZTEC}) already registered`);
     } else {
-        const hash = await walletClient.writeContract({
-            address: evmBridgeAddress,
-            abi: MESSAGE_BRIDGE_ABI,
-            functionName: "registerEmitter",
-            args: [AZTEC_WORMHOLE_CHAIN_ID, aztecEmitterBytes32, false], // false = Aztec payload (50 bytes with txId)
-        });
-        const receipt = await publicClient.waitForTransactionReceipt({ hash });
-        console.log(`    Registered in block ${receipt.blockNumber}`);
+        chainIds.push(WORMHOLE_CHAIN_ID_AZTEC);
+        emitterAddresses.push(aztecEmitterBytes32);
+        isDefaultPayloads.push(false); // Aztec uses 50-byte payload with txId
     }
 
-    // Register Solana emitter if enabled (isDefaultPayload = true, Solana uses 18-byte default payload)
+    // Check Solana emitter if enabled (isDefaultPayload = true, Solana uses 18-byte default payload)
     if (SOLANA_ENABLED) {
-        console.log(`\n  Registering Solana emitter (chain ${CHAIN_ID_SOLANA})...`);
         const { client } = createSolanaClient(SOLANA_RPC_URL!, SOLANA_BRIDGE_PROGRAM_ID!);
         const solanaEmitter = client.getEmitterAddress();
         const solanaEmitterBytes32 = formatEmitterAddress(solanaEmitter) as `0x${string}`;
@@ -114,22 +110,16 @@ async function configureEvmBridge(
         }) as `0x${string}`;
 
         if (solanaRegistered.toLowerCase() === solanaEmitterBytes32.toLowerCase()) {
-            console.log("    Solana emitter already registered");
+            console.log(`  Solana emitter (chain ${CHAIN_ID_SOLANA}) already registered`);
         } else {
-            const hash = await walletClient.writeContract({
-                address: evmBridgeAddress,
-                abi: MESSAGE_BRIDGE_ABI,
-                functionName: "registerEmitter",
-                args: [CHAIN_ID_SOLANA, solanaEmitterBytes32, true], // true = default payload (18 bytes)
-            });
-            const receipt = await publicClient.waitForTransactionReceipt({ hash });
-            console.log(`    Registered in block ${receipt.blockNumber}`);
+            chainIds.push(CHAIN_ID_SOLANA);
+            emitterAddresses.push(solanaEmitterBytes32);
+            isDefaultPayloads.push(true); // Solana uses 18-byte default payload
         }
     }
 
-    // Register other EVM chain emitter if configured (isDefaultPayload = true, EVM uses 18-byte default payload)
+    // Check other EVM chain emitter if configured (isDefaultPayload = true, EVM uses 18-byte default payload)
     if (otherEvmConfig) {
-        console.log(`\n  Registering ${otherEvmConfig.displayName} emitter (chain ${otherEvmConfig.wormholeChainId})...`);
         const otherEvmEmitterBytes32 = addressToBytes32(otherEvmConfig.bridgeAddress);
 
         const otherEvmRegistered = await publicClient.readContract({
@@ -140,17 +130,25 @@ async function configureEvmBridge(
         }) as `0x${string}`;
 
         if (otherEvmRegistered.toLowerCase() === otherEvmEmitterBytes32.toLowerCase()) {
-            console.log(`    ${otherEvmConfig.displayName} emitter already registered`);
+            console.log(`  ${otherEvmConfig.displayName} emitter (chain ${otherEvmConfig.wormholeChainId}) already registered`);
         } else {
-            const hash = await walletClient.writeContract({
-                address: evmBridgeAddress,
-                abi: MESSAGE_BRIDGE_ABI,
-                functionName: "registerEmitter",
-                args: [otherEvmConfig.wormholeChainId, otherEvmEmitterBytes32, true], // true = default payload (18 bytes)
-            });
-            const receipt = await publicClient.waitForTransactionReceipt({ hash });
-            console.log(`    Registered in block ${receipt.blockNumber}`);
+            chainIds.push(otherEvmConfig.wormholeChainId);
+            emitterAddresses.push(otherEvmEmitterBytes32);
+            isDefaultPayloads.push(true); // EVM uses 18-byte default payload
         }
+    }
+
+    // Batch register all unregistered emitters in a single transaction
+    if (chainIds.length > 0) {
+        console.log(`\n  Registering ${chainIds.length} emitter(s) in a single transaction...`);
+        const hash = await walletClient.writeContract({
+            address: evmBridgeAddress,
+            abi: MESSAGE_BRIDGE_ABI,
+            functionName: "registerEmitters",
+            args: [chainIds, emitterAddresses, isDefaultPayloads],
+        });
+        const receipt = await publicClient.waitForTransactionReceipt({ hash });
+        console.log(`    Registered in block ${receipt.blockNumber}`);
     }
 
     console.log(`${config.displayName} bridge configuration complete!`);
@@ -160,13 +158,13 @@ async function configureArbitrumBridge() {
     const config: EvmChainConfig = {
         rpcUrl: ARBITRUM_RPC_URL!,
         bridgeAddress: ARBITRUM_BRIDGE_ADDRESS!,
-        wormholeChainId: ARBITRUM_SEPOLIA_CHAIN_ID,
+        wormholeChainId: WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA,
         displayName: "Arbitrum Sepolia",
     };
 
     const otherEvmConfig = BASE_ENABLED ? {
         bridgeAddress: BASE_BRIDGE_ADDRESS!,
-        wormholeChainId: BASE_SEPOLIA_CHAIN_ID,
+        wormholeChainId: WORMHOLE_CHAIN_ID_BASE_SEPOLIA,
         displayName: "Base Sepolia",
     } : undefined;
 
@@ -221,47 +219,40 @@ async function configureAztecBridge() {
 
     const opts = await testnetSendWaitOpts(node, wallet, adminAddress);
 
-    // Register Arbitrum emitter
-    console.log(`\n  Registering Arbitrum emitter (chain ${ARBITRUM_SEPOLIA_CHAIN_ID})...`);
-    const arbEmitterBytes = hexToBytes32Array(ARBITRUM_BRIDGE_ADDRESS!);
+    // Collect emitters to register
+    const chainIds: number[] = [];
+    const emitterAddresses: Uint8Array[] = [];
 
+    // Check Arbitrum emitter
+    const arbEmitterBytes = hexToBytes32Array(ARBITRUM_BRIDGE_ADDRESS!);
     const arbRegistered = await bridge.methods
         .is_emitter_registered(ARBITRUM_SEPOLIA_CHAIN_ID, arbEmitterBytes as any)
         .simulate({ from: adminAddress });
 
     if (arbRegistered) {
-        console.log("    Arbitrum emitter already registered");
+        console.log(`  Arbitrum emitter (chain ${ARBITRUM_SEPOLIA_CHAIN_ID}) already registered`);
     } else {
-        await bridge.methods
-            .register_emitter(ARBITRUM_SEPOLIA_CHAIN_ID, arbEmitterBytes as any)
-            .send(opts.send)
-            .wait(opts.wait);
-        console.log("    Arbitrum emitter registered!");
+        chainIds.push(ARBITRUM_SEPOLIA_CHAIN_ID);
+        emitterAddresses.push(arbEmitterBytes);
     }
 
-    // Register Base emitter if enabled
+    // Check Base emitter if enabled
     if (BASE_ENABLED) {
-        console.log(`\n  Registering Base emitter (chain ${BASE_SEPOLIA_CHAIN_ID})...`);
         const baseEmitterBytes = hexToBytes32Array(BASE_BRIDGE_ADDRESS!);
-
         const baseRegistered = await bridge.methods
             .is_emitter_registered(BASE_SEPOLIA_CHAIN_ID, baseEmitterBytes as any)
             .simulate({ from: adminAddress });
 
         if (baseRegistered) {
-            console.log("    Base emitter already registered");
+            console.log(`  Base emitter (chain ${BASE_SEPOLIA_CHAIN_ID}) already registered`);
         } else {
-            await bridge.methods
-                .register_emitter(BASE_SEPOLIA_CHAIN_ID, baseEmitterBytes as any)
-                .send(opts.send)
-                .wait(opts.wait);
-            console.log("    Base emitter registered!");
+            chainIds.push(BASE_SEPOLIA_CHAIN_ID);
+            emitterAddresses.push(baseEmitterBytes);
         }
     }
 
-    // Register Solana emitter if enabled
+    // Check Solana emitter if enabled
     if (SOLANA_ENABLED) {
-        console.log(`\n  Registering Solana emitter (chain ${CHAIN_ID_SOLANA})...`);
         const { client } = createSolanaClient(SOLANA_RPC_URL!, SOLANA_BRIDGE_PROGRAM_ID!);
         const solanaEmitter = client.getEmitterAddress();
         const solanaEmitterBytes = hexToBytes32Array(formatEmitterAddress(solanaEmitter));
@@ -271,14 +262,21 @@ async function configureAztecBridge() {
             .simulate({ from: adminAddress });
 
         if (solanaRegistered) {
-            console.log("    Solana emitter already registered");
+            console.log(`  Solana emitter (chain ${CHAIN_ID_SOLANA}) already registered`);
         } else {
-            await bridge.methods
-                .register_emitter(CHAIN_ID_SOLANA, solanaEmitterBytes as any)
-                .send(opts.send)
-                .wait(opts.wait);
-            console.log("    Solana emitter registered!");
+            chainIds.push(CHAIN_ID_SOLANA);
+            emitterAddresses.push(solanaEmitterBytes);
         }
+    }
+
+    // Batch register all unregistered emitters in a single transaction
+    if (chainIds.length > 0) {
+        console.log(`\n  Registering ${chainIds.length} emitter(s) in a single transaction...`);
+        await bridge.methods
+            .register_emitter(chainIds as any, emitterAddresses as any)
+            .send(opts.send)
+            .wait(opts.wait);
+        console.log("    Emitters registered!");
     }
 
     console.log("Aztec bridge configuration complete!");
@@ -305,41 +303,54 @@ async function configureSolanaBridge() {
         return;
     }
 
-    // Register Arbitrum emitter (isDefaultPayload = true, EVM uses 18-byte default payload)
-    console.log(`\n  Registering Arbitrum emitter (chain ${CHAIN_ID_ARBITRUM_SEPOLIA})...`);
-    const arbEmitterBytes = MessageBridgeClient.evmAddressToWormhole(ARBITRUM_BRIDGE_ADDRESS!);
+    // Collect emitters to register
+    const emitters: Array<{ chainId: number; emitterAddress: Uint8Array; isDefaultPayload: boolean }> = [];
 
+    // Check Arbitrum emitter (isDefaultPayload = true, EVM uses 18-byte default payload)
+    const arbEmitterBytes = MessageBridgeClient.evmAddressToWormhole(ARBITRUM_BRIDGE_ADDRESS!);
     const arbEmitter = await client.getForeignEmitter(CHAIN_ID_ARBITRUM_SEPOLIA);
     if (arbEmitter && Buffer.from(arbEmitter.address).equals(Buffer.from(arbEmitterBytes))) {
-        console.log("    Arbitrum emitter already registered");
+        console.log(`  Arbitrum emitter (chain ${CHAIN_ID_ARBITRUM_SEPOLIA}) already registered`);
     } else {
-        const sig = await client.registerEmitter(owner, CHAIN_ID_ARBITRUM_SEPOLIA, arbEmitterBytes, true); // true = default payload
-        console.log(`    Registered! Signature: ${sig}`);
+        emitters.push({
+            chainId: CHAIN_ID_ARBITRUM_SEPOLIA,
+            emitterAddress: arbEmitterBytes,
+            isDefaultPayload: true, // EVM uses 18-byte default payload
+        });
     }
 
-    // Register Base emitter if enabled (isDefaultPayload = true, EVM uses 18-byte default payload)
+    // Check Base emitter if enabled (isDefaultPayload = true, EVM uses 18-byte default payload)
     if (BASE_ENABLED) {
-        console.log(`\n  Registering Base emitter (chain ${CHAIN_ID_BASE_SEPOLIA})...`);
         const baseEmitterBytes = MessageBridgeClient.evmAddressToWormhole(BASE_BRIDGE_ADDRESS!);
-
         const baseEmitter = await client.getForeignEmitter(CHAIN_ID_BASE_SEPOLIA);
         if (baseEmitter && Buffer.from(baseEmitter.address).equals(Buffer.from(baseEmitterBytes))) {
-            console.log("    Base emitter already registered");
+            console.log(`  Base emitter (chain ${CHAIN_ID_BASE_SEPOLIA}) already registered`);
         } else {
-            const sig = await client.registerEmitter(owner, CHAIN_ID_BASE_SEPOLIA, baseEmitterBytes, true); // true = default payload
-            console.log(`    Registered! Signature: ${sig}`);
+            emitters.push({
+                chainId: CHAIN_ID_BASE_SEPOLIA,
+                emitterAddress: baseEmitterBytes,
+                isDefaultPayload: true, // EVM uses 18-byte default payload
+            });
         }
     }
 
-    // Register Aztec emitter (isDefaultPayload = false, Aztec uses 50-byte payload with txId)
-    console.log(`\n  Registering Aztec emitter (chain ${CHAIN_ID_AZTEC})...`);
+    // Check Aztec emitter (isDefaultPayload = false, Aztec uses 50-byte payload with txId)
     const aztecEmitterBytes = MessageBridgeClient.aztecAddressToWormhole(AZTEC_WORMHOLE_ADDRESS!);
-
     const aztecEmitter = await client.getForeignEmitter(CHAIN_ID_AZTEC);
     if (aztecEmitter && Buffer.from(aztecEmitter.address).equals(Buffer.from(aztecEmitterBytes))) {
-        console.log("    Aztec emitter already registered");
+        console.log(`  Aztec emitter (chain ${CHAIN_ID_AZTEC}) already registered`);
     } else {
-        const sig = await client.registerEmitter(owner, CHAIN_ID_AZTEC, aztecEmitterBytes, false); // false = Aztec payload (50 bytes)
+        emitters.push({
+            chainId: CHAIN_ID_AZTEC,
+            emitterAddress: aztecEmitterBytes,
+            isDefaultPayload: false, // Aztec uses 50-byte payload with txId
+        });
+    }
+
+    // Batch register all unregistered emitters in a single transaction
+    if (emitters.length > 0) {
+        console.log(`\n  Registering ${emitters.length} emitter(s) in a single transaction...`);
+        const sig = await client.registerEmitters(owner, emitters);
         console.log(`    Registered! Signature: ${sig}`);
     }
 
@@ -349,7 +360,7 @@ async function configureSolanaBridge() {
 async function main() {
     console.log("Configuring cross-chain bridges...");
     console.log(`\nChain IDs:`);
-    console.log(`  Aztec: ${AZTEC_WORMHOLE_CHAIN_ID}`);
+    console.log(`  Aztec: ${WORMHOLE_CHAIN_ID_AZTEC}`);
     console.log(`  Arbitrum Sepolia: ${ARBITRUM_SEPOLIA_CHAIN_ID}`);
     if (BASE_ENABLED) {
         console.log(`  Base Sepolia: ${BASE_SEPOLIA_CHAIN_ID}`);

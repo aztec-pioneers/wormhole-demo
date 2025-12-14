@@ -1,11 +1,15 @@
 import { PublicKey } from "@solana/web3.js";
 
-// Wormhole Chain IDs
-export const CHAIN_ID_SOLANA = 1;
-export const CHAIN_ID_ETHEREUM = 2;
-export const CHAIN_ID_ARBITRUM_SEPOLIA = 10003;
-export const CHAIN_ID_BASE_SEPOLIA = 10004;
-export const CHAIN_ID_AZTEC = 56;
+// Re-export chain IDs from shared package
+export {
+    WORMHOLE_CHAIN_ID_SOLANA,
+    WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA,
+    WORMHOLE_CHAIN_ID_BASE_SEPOLIA,
+    WORMHOLE_CHAIN_ID_AZTEC,
+    WORMHOLE_CORE_BRIDGE_SOLANA_DEVNET,
+} from "@aztec-wormhole-demo/shared";
+
+import { WORMHOLE_CORE_BRIDGE_SOLANA_DEVNET } from "@aztec-wormhole-demo/shared";
 
 // PDA Seeds
 export const SEED_CONFIG = Buffer.from("config");
@@ -24,9 +28,7 @@ export const SEED_WORMHOLE_POSTED_VAA = Buffer.from("PostedVAA");
 // Wormhole Program ID (devnet default - matches wormhole-anchor-sdk "solana-devnet" feature)
 // Override via SOLANA_WORMHOLE_PROGRAM_ID env var or wormholeProgramId client option
 // Note: mainnet is "worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth"
-export const WORMHOLE_PROGRAM_ID = new PublicKey(
-    "3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5"
-);
+export const WORMHOLE_PROGRAM_ID = new PublicKey(WORMHOLE_CORE_BRIDGE_SOLANA_DEVNET);
 
 // Instruction discriminators (from IDL)
 export const DISCRIMINATORS = {

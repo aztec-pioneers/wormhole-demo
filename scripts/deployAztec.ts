@@ -5,7 +5,7 @@ import { MessageBridgeContract } from "@aztec-wormhole-demo/aztec-contracts/arti
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { loadAccount, MESSAGE_FEE, TESTNET_PXE_CONFIG, testnetSendWaitOpts } from "./utils/aztec";
 import { TestWallet } from "@aztec/test-wallet/server";
-import { AZTEC_WORMHOLE_CHAIN_ID } from "@aztec-wormhole-demo/aztec-contracts/constants";
+import { WORMHOLE_CHAIN_ID_AZTEC } from "@aztec-wormhole-demo/aztec-contracts/constants";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 
 const { AZTEC_NODE_URL, AZTEC_WORMHOLE_ADDRESS, AZTEC_WORMHOLE_CONSISTENCY } = process.env;
@@ -26,13 +26,13 @@ const main = async () => {
     const consistency = parseInt(AZTEC_WORMHOLE_CONSISTENCY, 10);
     console.log("Deploying MessageBridge contract...");
     console.log(`  Wormhole Address: ${AZTEC_WORMHOLE_ADDRESS}`);
-    console.log(`  Wormhole Chain ID: ${AZTEC_WORMHOLE_CHAIN_ID}`);
+    console.log(`  Wormhole Chain ID: ${WORMHOLE_CHAIN_ID_AZTEC}`);
     console.log(`  Consistency: ${consistency}`);
     const opts = await testnetSendWaitOpts(node, wallet, adminAddress);
     const messageBridge = await MessageBridgeContract.deploy(
         wallet,
         AztecAddress.fromString(AZTEC_WORMHOLE_ADDRESS),
-        AZTEC_WORMHOLE_CHAIN_ID,  // Use Wormhole chain ID (56), not Aztec testnet chain ID
+        WORMHOLE_CHAIN_ID_AZTEC,  // Use Wormhole chain ID (56), not Aztec testnet chain ID
         adminAddress,
         MESSAGE_FEE,
         consistency

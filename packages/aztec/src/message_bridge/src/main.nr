@@ -64,16 +64,35 @@ pub contract MessageBridge {
         storage.current_value.write(0);
     }
 
+    /**
+     * Register up to 8 emitter addresses for source chains
+     *
+     * @param source_chain_id The chain ID of the source chain
+     */
     #[external("public")]
-    fn register_emitter(source_chain_id: u16, emitter_address: [u8; 32]) {
+    fn register_emitter(
+        source_chain_ids: BoundedVec<u16, 8>,
+        emitter_addresses: BoundedVec<[u8; 32], 8>,
+    ) {
         // 1. check caller is admin
         let owner = storage.owner.read();
         assert(owner == context.msg_sender().unwrap(), "Caller is not owner");
 
-        // 2. register emitter (store full 32-byte address)
-        storage.registered_emitters
-            .at(source_chain_id)
-            .write(emitter_address);
+        // 2. check lengths match
+        assert(
+            source_chain_ids.len() == emitter_addresses.len(),
+            "Source chain IDs and emitter addresses length mismatch"
+        );
+        // 3. register emitters (store full 32-byte addresses)
+        for i in 0..8 {
+            if i < source_chain_ids.len() {
+                let source_chain_id = source_chain_ids.get_unchecked(i);
+                let emitter_address = emitter_addresses.get_unchecked(i);
+                storage.registered_emitters
+                    .at(source_chain_id)
+                    .write(emitter_address);
+            }
+        }
     }
 
     // ============================================================================

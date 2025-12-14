@@ -45,14 +45,14 @@ export class MessageBridgeContract extends ContractBase {
   /**
    * Creates a tx to deploy a new instance of this contract.
    */
-  public static deploy(wallet: Wallet, wormhole_address: AztecAddressLike, chain_id: (bigint | number), owner: AztecAddressLike, message_fee: (bigint | number)) {
+  public static deploy(wallet: Wallet, wormhole_address: AztecAddressLike, chain_id: (bigint | number), owner: AztecAddressLike, message_fee: (bigint | number), consistency: (bigint | number)) {
     return new DeployMethod<MessageBridgeContract>(PublicKeys.default(), wallet, MessageBridgeContractArtifact, MessageBridgeContract.at, Array.from(arguments).slice(1));
   }
 
   /**
    * Creates a tx to deploy a new instance of this contract using the specified public keys hash to derive the address.
    */
-  public static deployWithPublicKeys(publicKeys: PublicKeys, wallet: Wallet, wormhole_address: AztecAddressLike, chain_id: (bigint | number), owner: AztecAddressLike, message_fee: (bigint | number)) {
+  public static deployWithPublicKeys(publicKeys: PublicKeys, wallet: Wallet, wormhole_address: AztecAddressLike, chain_id: (bigint | number), owner: AztecAddressLike, message_fee: (bigint | number), consistency: (bigint | number)) {
     return new DeployMethod<MessageBridgeContract>(publicKeys, wallet, MessageBridgeContractArtifact, MessageBridgeContract.at, Array.from(arguments).slice(2));
   }
 
@@ -96,13 +96,13 @@ export class MessageBridgeContract extends ContractBase {
       slot: new Fr(1n),
     },
 owner: {
-      slot: new Fr(5n),
-    },
-registered_emitters: {
       slot: new Fr(6n),
     },
-current_value: {
+registered_emitters: {
       slot: new Fr(7n),
+    },
+current_value: {
+      slot: new Fr(8n),
     }
       } as ContractStorageLayout<'config' | 'owner' | 'registered_emitters' | 'current_value'>;
     }
@@ -111,8 +111,8 @@ current_value: {
   /** Type-safe wrappers for the public methods exposed by the contract. */
   public declare methods: {
     
-    /** constructor(wormhole_address: struct, chain_id: integer, owner: struct, message_fee: integer) */
-    constructor: ((wormhole_address: AztecAddressLike, chain_id: (bigint | number), owner: AztecAddressLike, message_fee: (bigint | number)) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
+    /** constructor(wormhole_address: struct, chain_id: integer, owner: struct, message_fee: integer, consistency: integer) */
+    constructor: ((wormhole_address: AztecAddressLike, chain_id: (bigint | number), owner: AztecAddressLike, message_fee: (bigint | number), consistency: (bigint | number)) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
     /** get_config() */
     get_config: (() => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
@@ -138,8 +138,8 @@ current_value: {
     /** receive_value(vaa: array, length: integer) */
     receive_value: ((vaa: (bigint | number)[], length: (bigint | number)) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
-    /** register_emitter(source_chain_id: integer, emitter_address: array) */
-    register_emitter: ((source_chain_id: (bigint | number), emitter_address: (bigint | number)[]) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
+    /** register_emitter(source_chain_ids: struct, emitter_addresses: struct) */
+    register_emitter: ((source_chain_ids: (bigint | number)[], emitter_addresses: (bigint | number)[][]) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
     /** send_value_private(destination_chain_id: integer, value: integer, fee_nonce: field) */
     send_value_private: ((destination_chain_id: (bigint | number), value: (bigint | number), fee_nonce: FieldLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;

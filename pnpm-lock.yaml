@@ -30,6 +30,9 @@ importers:
 
   packages/aztec:
     dependencies:
+      '@aztec-wormhole-demo/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@aztec/accounts':
         specifier: 3.0.0-devnet.5
         version: 3.0.0-devnet.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -126,8 +129,13 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/shared: {}
+
   packages/solana-vaa-service:
     dependencies:
+      '@aztec-wormhole-demo/solana-sdk':
+        specifier: workspace:*
+        version: link:../solana/ts
       '@solana/web3.js':
         specifier: ^1.95.0
         version: 1.98.4(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -162,6 +170,9 @@ importers:
 
   packages/solana/ts:
     dependencies:
+      '@aztec-wormhole-demo/shared':
+        specifier: workspace:*
+        version: link:../../shared
       '@certusone/wormhole-sdk':
         specifier: ^0.10.18
         version: 0.10.18(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(google-protobuf@3.21.4)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -4590,7 +4601,7 @@ snapshots:
     dependencies:
       '@aptos-labs/aptos-cli': 1.0.2
       '@aptos-labs/aptos-client': 2.1.0(got@11.8.6)
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.4
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
@@ -6585,7 +6596,7 @@ snapshots:
       '@injectivelabs/olp-proto-ts': 1.13.4
       '@injectivelabs/ts-types': 1.16.38
       '@injectivelabs/utils': 1.16.38
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.4
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
       axios: 1.13.2
@@ -7987,7 +7998,7 @@ snapshots:
 
   '@wormhole-foundation/sdk-definitions@4.7.0':
     dependencies:
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.4
       '@noble/hashes': 1.8.0
       '@wormhole-foundation/sdk-base': 4.7.0
 

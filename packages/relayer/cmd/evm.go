@@ -16,17 +16,29 @@ import (
 	"github.com/wormhole-demo/relayer/internal/submitter"
 )
 
-const (
-	// Default configuration values for EVM
-	DefaultEVMRPCURL         = "https://sepolia-rollup.arbitrum.io/rpc"
-	DefaultEVMTargetContract = "0x248EC2E5595480fF371031698ae3a4099b8dC229"
+// EVMChainConfig holds chain-specific configuration
+type EVMChainConfig struct {
+	DestinationChainID uint16
+	DefaultRPCURL      string
+	DefaultSourceChains []int
+	DisplayName        string
+}
 
-	// Wormhole chain ID for Arbitrum Sepolia
-	EVMDestinationChainID uint16 = 10003
-)
-
-// Default source chains for EVM destination (Aztec=56, Solana=1, Base=10004)
-var DefaultEVMSourceChains = []int{56, 1, 10004}
+// Supported EVM chains
+var EVMChainConfigs = map[string]EVMChainConfig{
+	"arbitrum": {
+		DestinationChainID:  10003,
+		DefaultRPCURL:       "https://sepolia-rollup.arbitrum.io/rpc",
+		DefaultSourceChains: []int{56, 1, 10004}, // Aztec, Solana, Base
+		DisplayName:         "Arbitrum Sepolia",
+	},
+	"base": {
+		DestinationChainID:  10004,
+		DefaultRPCURL:       "https://sepolia.base.org",
+		DefaultSourceChains: []int{56, 1, 10003}, // Aztec, Solana, Arbitrum
+		DisplayName:         "Base Sepolia",
+	},
+}
 
 // evmCmd represents the command to relay VAAs to EVM chains
 var evmCmd = &cobra.Command{
@@ -35,7 +47,9 @@ var evmCmd = &cobra.Command{
 	Long: `Listens for Wormhole VAAs from configured source chains and relays them to EVM.
 
 This command monitors the Wormhole network for messages from Aztec, Solana,
-or other configured chains and submits them to the specified EVM chain.`,
+or other configured chains and submits them to the specified EVM chain.
+
+Use --chain to specify the target chain (arbitrum or base).`,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		printBanner()
 		configureLogging(cmd, args)
@@ -46,11 +60,17 @@ or other configured chains and submits them to the specified EVM chain.`,
 func init() {
 	rootCmd.AddCommand(evmCmd)
 
+	// Chain selection flag
+	evmCmd.Flags().String(
+		"chain",
+		"arbitrum",
+		"Target EVM chain (arbitrum, base)")
+
 	// EVM-specific flags
 	evmCmd.Flags().String(
 		"evm-rpc-url",
-		DefaultEVMRPCURL,
-		"RPC URL for EVM chain (e.g., Arbitrum)")
+		"",
+		"RPC URL for EVM chain (defaults based on --chain)")
 
 	evmCmd.Flags().String(
 		"private-key",
@@ -59,23 +79,25 @@ func init() {
 
 	evmCmd.Flags().String(
 		"evm-target-contract",
-		DefaultEVMTargetContract,
-		"Target contract on EVM chain to send VAAs to")
+		"",
+		"Target contract on EVM chain to send VAAs to (required)")
 
 	evmCmd.Flags().IntSlice(
 		"chain-ids",
-		DefaultEVMSourceChains,
-		"Source chain IDs to listen for (Aztec=56, Solana=1, Base=10004)")
+		nil,
+		"Source chain IDs to listen for (defaults based on --chain)")
 
 	evmCmd.Flags().String(
 		"emitter-address",
 		"",
 		"Source emitter address to filter (hex, e.g., Aztec bridge address)")
 
-	// Mark private key as required
+	// Mark private key and target contract as required
 	evmCmd.MarkFlagRequired("private-key")
+	evmCmd.MarkFlagRequired("evm-target-contract")
 
 	// Bind flags to viper
+	viper.BindPFlag("chain", evmCmd.Flags().Lookup("chain"))
 	viper.BindPFlag("evm_rpc_url", evmCmd.Flags().Lookup("evm-rpc-url"))
 	viper.BindPFlag("private_key", evmCmd.Flags().Lookup("private-key"))
 	viper.BindPFlag("evm_target_contract", evmCmd.Flags().Lookup("evm-target-contract"))
@@ -84,6 +106,7 @@ func init() {
 }
 
 type EVMConfig struct {
+	ChainName         string   // Target chain name (arbitrum, base)
 	SpyRPCHost        string   // Wormhole spy service endpoint
 	ChainIDs          []uint16 // Source chain IDs to listen for
 	EVMRPCURL         string   // RPC URL for EVM chain
@@ -94,11 +117,24 @@ type EVMConfig struct {
 
 func runEVMRelay(cmd *cobra.Command, args []string) error {
 	logger := configureLogging(cmd, args)
-	logger.Info("Starting EVM relayer")
+
+	// Get chain selection
+	chainName, _ := cmd.Flags().GetString("chain")
+	chainConfig, ok := EVMChainConfigs[chainName]
+	if !ok {
+		return fmt.Errorf("unsupported chain: %s (valid: arbitrum, base)", chainName)
+	}
+
+	logger.Info(fmt.Sprintf("Starting %s relayer", chainConfig.DisplayName))
 
 	// Get flags directly from command (viper bindings conflict across commands)
 	emitterAddress, _ := cmd.Flags().GetString("emitter-address")
 	chainIDsInt, _ := cmd.Flags().GetIntSlice("chain-ids")
+
+	// Use default source chains if not specified
+	if len(chainIDsInt) == 0 {
+		chainIDsInt = chainConfig.DefaultSourceChains
+	}
 
 	// Convert chain IDs from []int to []uint16
 	chainIDs := make([]uint16, len(chainIDsInt))
@@ -106,10 +142,17 @@ func runEVMRelay(cmd *cobra.Command, args []string) error {
 		chainIDs[i] = uint16(id)
 	}
 
+	// Get RPC URL, use default if not specified
+	rpcURL := viper.GetString("evm_rpc_url")
+	if rpcURL == "" {
+		rpcURL = chainConfig.DefaultRPCURL
+	}
+
 	config := EVMConfig{
+		ChainName:         chainName,
 		SpyRPCHost:        viper.GetString("spy_rpc_host"),
 		ChainIDs:          chainIDs,
-		EVMRPCURL:         viper.GetString("evm_rpc_url"),
+		EVMRPCURL:         rpcURL,
 		PrivateKey:        viper.GetString("private_key"),
 		EVMTargetContract: viper.GetString("evm_target_contract"),
 		EmitterAddress:    emitterAddress,
@@ -121,8 +164,10 @@ func runEVMRelay(cmd *cobra.Command, args []string) error {
 	}
 
 	logger.Info("Configuration",
+		zap.String("chain", chainConfig.DisplayName),
+		zap.Uint16("destinationChainID", chainConfig.DestinationChainID),
 		zap.String("spyRPC", config.SpyRPCHost),
-		zap.Any("chainIds", config.ChainIDs),
+		zap.Any("sourceChainIds", config.ChainIDs),
 		zap.String("evmRPC", config.EVMRPCURL),
 		zap.String("evmTarget", config.EVMTargetContract),
 		zap.String("emitterFilter", config.EmitterAddress))
@@ -150,7 +195,7 @@ func runEVMRelay(cmd *cobra.Command, args []string) error {
 		internal.VAAProcessorConfig{
 			ChainIDs:           config.ChainIDs,
 			EmitterAddress:     config.EmitterAddress,
-			DestinationChainID: EVMDestinationChainID,
+			DestinationChainID: chainConfig.DestinationChainID,
 		},
 		evmSubmitter)
 

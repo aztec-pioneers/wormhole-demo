@@ -1,8 +1,9 @@
 import { Connection, PublicKey } from '@solana/web3.js';
 import { keccak256 } from '@wormhole-foundation/sdk';
+import { WORMHOLE_CORE_BRIDGE_SOLANA_DEVNET } from '@aztec-wormhole-demo/solana-sdk';
 
 const SOLANA_RPC_URL = 'https://api.devnet.solana.com';
-const WORMHOLE_PROGRAM_ID = '3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5';
+const WORMHOLE_PROGRAM_ID = WORMHOLE_CORE_BRIDGE_SOLANA_DEVNET;
 const ACTUAL_POSTED_VAA = 'F7ymqcgAMTNhXcWNC7CR95qVmHzR4e1BvFxXSgkj1iGt';
 
 async function main() {

@@ -57,9 +57,9 @@ services:
       dockerfile: Dockerfile
     command:
       - evm
+      - --chain=arbitrum
       - --private-key=${EVM_PRIVATE_KEY}
       - --evm-target-contract=${ARBITRUM_BRIDGE_ADDRESS}
-      # Default: --chain-ids=56,1,10004 (Aztec, Solana, Base)
     environment:
       - WORMHOLE_RELAYER_SPY_RPC_HOST=wormhole-spy:7073
       - WORMHOLE_RELAYER_EVM_RPC_URL=${ARBITRUM_RPC_URL}
@@ -75,13 +75,13 @@ services:
       context: ./packages/relayer
       dockerfile: Dockerfile
     command:
-      - base
+      - evm
+      - --chain=base
       - --private-key=${EVM_PRIVATE_KEY}
-      - --base-target-contract=${BASE_BRIDGE_ADDRESS}
-      # Default: --chain-ids=56,1,10003 (Aztec, Solana, Arbitrum)
+      - --evm-target-contract=${BASE_BRIDGE_ADDRESS}
     environment:
       - WORMHOLE_RELAYER_SPY_RPC_HOST=wormhole-spy:7073
-      - WORMHOLE_RELAYER_BASE_RPC_URL=${BASE_RPC_URL}
+      - WORMHOLE_RELAYER_EVM_RPC_URL=${BASE_RPC_URL}
     depends_on:
       - wormhole-spy
     networks:

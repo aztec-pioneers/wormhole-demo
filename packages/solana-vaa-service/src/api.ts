@@ -5,11 +5,12 @@ import solana from '@wormhole-foundation/sdk/solana';
 import { getSolanaSignAndSendSigner } from '@wormhole-foundation/sdk-solana';
 import bs58 from 'bs58';
 import crypto from 'crypto';
+import { WORMHOLE_CORE_BRIDGE_SOLANA_DEVNET } from '@aztec-wormhole-demo/solana-sdk';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
 const SOLANA_PRIVATE_KEY = process.env.SOLANA_PRIVATE_KEY || '';
-const WORMHOLE_PROGRAM_ID = process.env.SOLANA_WORMHOLE_PROGRAM_ID || '3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5';
+const WORMHOLE_PROGRAM_ID = process.env.SOLANA_WORMHOLE_PROGRAM_ID || WORMHOLE_CORE_BRIDGE_SOLANA_DEVNET;
 
 if (!SOLANA_PRIVATE_KEY) {
     console.error('SOLANA_PRIVATE_KEY is required');

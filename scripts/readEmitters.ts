@@ -11,12 +11,11 @@ import { loadAccount, getTestnetPxeConfig } from "./utils/aztec";
 import { addressToBytes32, hexToBytes32Array } from "./utils/bytes";
 import { createEvmClients, MESSAGE_BRIDGE_ABI, EvmChainName } from "./utils/evm";
 import { createSolanaClient, formatEmitterAddress } from "./utils/solana";
-import { AZTEC_WORMHOLE_CHAIN_ID, ARBITRUM_SEPOLIA_CHAIN_ID, BASE_SEPOLIA_CHAIN_ID } from "@aztec-wormhole-demo/aztec-contracts/constants";
 import {
-    CHAIN_ID_SOLANA,
-    CHAIN_ID_ARBITRUM_SEPOLIA,
-    CHAIN_ID_BASE_SEPOLIA,
-    CHAIN_ID_AZTEC,
+    WORMHOLE_WORMHOLE_CHAIN_ID_SOLANA,
+    WORMHOLE_WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA,
+    WORMHOLE_WORMHOLE_CHAIN_ID_BASE_SEPOLIA,
+    WORMHOLE_WORMHOLE_CHAIN_ID_AZTEC,
     MessageBridgeClient,
 } from "@aztec-wormhole-demo/solana-sdk";
 
@@ -68,13 +67,13 @@ async function checkEvmBridge(
     const results: CheckResult[] = [];
 
     // Check Aztec emitter
-    console.log(`\n  Checking Aztec emitter (chain ${AZTEC_WORMHOLE_CHAIN_ID})...`);
+    console.log(`\n  Checking Aztec emitter (chain ${WORMHOLE_WORMHOLE_CHAIN_ID_AZTEC})...`);
     const aztecExpected = addressToBytes32(AZTEC_WORMHOLE_ADDRESS!);
     const aztecRegistered = await publicClient.readContract({
         address: evmBridgeAddress,
         abi: MESSAGE_BRIDGE_ABI,
         functionName: "registeredEmitters",
-        args: [AZTEC_WORMHOLE_CHAIN_ID],
+        args: [WORMHOLE_WORMHOLE_CHAIN_ID_AZTEC],
     }) as `0x${string}`;
 
     const aztecMatch = aztecRegistered.toLowerCase() === aztecExpected.toLowerCase();
@@ -91,7 +90,7 @@ async function checkEvmBridge(
 
     // Check Solana emitter if enabled
     if (SOLANA_ENABLED) {
-        console.log(`\n  Checking Solana emitter (chain ${CHAIN_ID_SOLANA})...`);
+        console.log(`\n  Checking Solana emitter (chain ${WORMHOLE_CHAIN_ID_SOLANA})...`);
         const { client } = createSolanaClient(SOLANA_RPC_URL!, SOLANA_BRIDGE_PROGRAM_ID!);
         const solanaEmitter = client.getEmitterAddress();
         const solanaExpected = formatEmitterAddress(solanaEmitter);
@@ -100,7 +99,7 @@ async function checkEvmBridge(
             address: evmBridgeAddress,
             abi: MESSAGE_BRIDGE_ABI,
             functionName: "registeredEmitters",
-            args: [CHAIN_ID_SOLANA],
+            args: [WORMHOLE_CHAIN_ID_SOLANA],
         }) as `0x${string}`;
 
         const solanaMatch = solanaRegistered.toLowerCase() === solanaExpected.toLowerCase();
@@ -118,13 +117,13 @@ async function checkEvmBridge(
 
     // Check other EVM chain emitter
     if (chainName === "arbitrum" && BASE_ENABLED) {
-        console.log(`\n  Checking Base emitter (chain ${BASE_SEPOLIA_CHAIN_ID})...`);
+        console.log(`\n  Checking Base emitter (chain ${WORMHOLE_WORMHOLE_CHAIN_ID_BASE_SEPOLIA})...`);
         const baseExpected = addressToBytes32(BASE_BRIDGE_ADDRESS!);
         const baseRegistered = await publicClient.readContract({
             address: evmBridgeAddress,
             abi: MESSAGE_BRIDGE_ABI,
             functionName: "registeredEmitters",
-            args: [BASE_SEPOLIA_CHAIN_ID],
+            args: [WORMHOLE_WORMHOLE_CHAIN_ID_BASE_SEPOLIA],
         }) as `0x${string}`;
 
         const baseMatch = baseRegistered.toLowerCase() === baseExpected.toLowerCase();
@@ -139,13 +138,13 @@ async function checkEvmBridge(
             isRegistered: baseMatch,
         });
     } else if (chainName === "base") {
-        console.log(`\n  Checking Arbitrum emitter (chain ${ARBITRUM_SEPOLIA_CHAIN_ID})...`);
+        console.log(`\n  Checking Arbitrum emitter (chain ${WORMHOLE_WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA})...`);
         const arbExpected = addressToBytes32(ARBITRUM_BRIDGE_ADDRESS!);
         const arbRegistered = await publicClient.readContract({
             address: evmBridgeAddress,
             abi: MESSAGE_BRIDGE_ABI,
             functionName: "registeredEmitters",
-            args: [ARBITRUM_SEPOLIA_CHAIN_ID],
+            args: [WORMHOLE_WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA],
         }) as `0x${string}`;
 
         const arbMatch = arbRegistered.toLowerCase() === arbExpected.toLowerCase();
@@ -165,7 +164,7 @@ async function checkEvmBridge(
 }
 
 async function checkArbitrumBridge(): Promise<CheckResult[]> {
-    return checkEvmBridge("arbitrum", ARBITRUM_RPC_URL!, ARBITRUM_BRIDGE_ADDRESS!, "Arbitrum MessageBridge", ARBITRUM_SEPOLIA_CHAIN_ID);
+    return checkEvmBridge("arbitrum", ARBITRUM_RPC_URL!, ARBITRUM_BRIDGE_ADDRESS!, "Arbitrum MessageBridge", WORMHOLE_WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA);
 }
 
 async function checkBaseBridge(): Promise<CheckResult[]> {
@@ -173,7 +172,7 @@ async function checkBaseBridge(): Promise<CheckResult[]> {
         console.log("\n=== Skipping Base MessageBridge (not configured) ===");
         return [];
     }
-    return checkEvmBridge("base", BASE_RPC_URL!, BASE_BRIDGE_ADDRESS!, "Base MessageBridge", BASE_SEPOLIA_CHAIN_ID);
+    return checkEvmBridge("base", BASE_RPC_URL!, BASE_BRIDGE_ADDRESS!, "Base MessageBridge", WORMHOLE_WORMHOLE_CHAIN_ID_BASE_SEPOLIA);
 }
 
 async function checkAztecBridge(): Promise<CheckResult[]> {
@@ -194,11 +193,11 @@ async function checkAztecBridge(): Promise<CheckResult[]> {
     const results: CheckResult[] = [];
 
     // Check Arbitrum emitter
-    console.log(`\n  Checking Arbitrum emitter (chain ${ARBITRUM_SEPOLIA_CHAIN_ID})...`);
+    console.log(`\n  Checking Arbitrum emitter (chain ${WORMHOLE_WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA})...`);
     const arbExpected = addressToBytes32(ARBITRUM_BRIDGE_ADDRESS!);
     const arbEmitterBytes = hexToBytes32Array(ARBITRUM_BRIDGE_ADDRESS!);
     const arbRegistered = await bridge.methods
-        .is_emitter_registered(ARBITRUM_SEPOLIA_CHAIN_ID, arbEmitterBytes as any)
+        .is_emitter_registered(WORMHOLE_WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA, arbEmitterBytes as any)
         .simulate({ from: adminAddress });
 
     console.log(`    Expected: ${arbExpected}`);
@@ -213,11 +212,11 @@ async function checkAztecBridge(): Promise<CheckResult[]> {
 
     // Check Base emitter if enabled
     if (BASE_ENABLED) {
-        console.log(`\n  Checking Base emitter (chain ${BASE_SEPOLIA_CHAIN_ID})...`);
+        console.log(`\n  Checking Base emitter (chain ${WORMHOLE_WORMHOLE_CHAIN_ID_BASE_SEPOLIA})...`);
         const baseExpected = addressToBytes32(BASE_BRIDGE_ADDRESS!);
         const baseEmitterBytes = hexToBytes32Array(BASE_BRIDGE_ADDRESS!);
         const baseRegistered = await bridge.methods
-            .is_emitter_registered(BASE_SEPOLIA_CHAIN_ID, baseEmitterBytes as any)
+            .is_emitter_registered(WORMHOLE_WORMHOLE_CHAIN_ID_BASE_SEPOLIA, baseEmitterBytes as any)
             .simulate({ from: adminAddress });
 
         console.log(`    Expected: ${baseExpected}`);
@@ -233,14 +232,14 @@ async function checkAztecBridge(): Promise<CheckResult[]> {
 
     // Check Solana emitter if enabled
     if (SOLANA_ENABLED) {
-        console.log(`\n  Checking Solana emitter (chain ${CHAIN_ID_SOLANA})...`);
+        console.log(`\n  Checking Solana emitter (chain ${WORMHOLE_CHAIN_ID_SOLANA})...`);
         const { client } = createSolanaClient(SOLANA_RPC_URL!, SOLANA_BRIDGE_PROGRAM_ID!);
         const solanaEmitter = client.getEmitterAddress();
         const solanaExpected = formatEmitterAddress(solanaEmitter);
         const solanaEmitterBytes = hexToBytes32Array(solanaExpected);
 
         const solanaRegistered = await bridge.methods
-            .is_emitter_registered(CHAIN_ID_SOLANA, solanaEmitterBytes as any)
+            .is_emitter_registered(WORMHOLE_CHAIN_ID_SOLANA, solanaEmitterBytes as any)
             .simulate({ from: adminAddress });
 
         console.log(`    Expected: ${solanaExpected}`);
@@ -282,9 +281,9 @@ async function checkSolanaBridge(): Promise<CheckResult[]> {
     }
 
     // Check Arbitrum emitter
-    console.log(`\n  Checking Arbitrum emitter (chain ${CHAIN_ID_ARBITRUM_SEPOLIA})...`);
+    console.log(`\n  Checking Arbitrum emitter (chain ${WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA})...`);
     const arbExpected = MessageBridgeClient.evmAddressToWormhole(ARBITRUM_BRIDGE_ADDRESS!);
-    const arbEmitter = await client.getForeignEmitter(CHAIN_ID_ARBITRUM_SEPOLIA);
+    const arbEmitter = await client.getForeignEmitter(WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA);
     const arbRegistered = arbEmitter !== null &&
         Buffer.from(arbEmitter.address).equals(Buffer.from(arbExpected));
 
@@ -301,9 +300,9 @@ async function checkSolanaBridge(): Promise<CheckResult[]> {
 
     // Check Base emitter if enabled
     if (BASE_ENABLED) {
-        console.log(`\n  Checking Base emitter (chain ${CHAIN_ID_BASE_SEPOLIA})...`);
+        console.log(`\n  Checking Base emitter (chain ${WORMHOLE_CHAIN_ID_BASE_SEPOLIA})...`);
         const baseExpected = MessageBridgeClient.evmAddressToWormhole(BASE_BRIDGE_ADDRESS!);
-        const baseEmitter = await client.getForeignEmitter(CHAIN_ID_BASE_SEPOLIA);
+        const baseEmitter = await client.getForeignEmitter(WORMHOLE_CHAIN_ID_BASE_SEPOLIA);
         const baseRegistered = baseEmitter !== null &&
             Buffer.from(baseEmitter.address).equals(Buffer.from(baseExpected));
 
@@ -320,9 +319,9 @@ async function checkSolanaBridge(): Promise<CheckResult[]> {
     }
 
     // Check Aztec emitter
-    console.log(`\n  Checking Aztec emitter (chain ${CHAIN_ID_AZTEC})...`);
+    console.log(`\n  Checking Aztec emitter (chain ${WORMHOLE_CHAIN_ID_AZTEC})...`);
     const aztecExpected = MessageBridgeClient.aztecAddressToWormhole(AZTEC_WORMHOLE_ADDRESS!);
-    const aztecEmitter = await client.getForeignEmitter(CHAIN_ID_AZTEC);
+    const aztecEmitter = await client.getForeignEmitter(WORMHOLE_CHAIN_ID_AZTEC);
     const aztecRegistered = aztecEmitter !== null &&
         Buffer.from(aztecEmitter.address).equals(Buffer.from(aztecExpected));
 

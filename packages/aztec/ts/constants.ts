@@ -1,3 +1,7 @@
-export const AZTEC_WORMHOLE_CHAIN_ID = 56;
-export const ARBITRUM_SEPOLIA_CHAIN_ID = 10003;
-export const BASE_SEPOLIA_CHAIN_ID = 10004;
+// Re-export chain IDs from shared package
+export {
+    WORMHOLE_CHAIN_ID_AZTEC,
+    WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA,
+    WORMHOLE_CHAIN_ID_BASE_SEPOLIA,
+    WORMHOLE_CHAIN_ID_SOLANA,
+} from "@aztec-wormhole-demo/shared";
