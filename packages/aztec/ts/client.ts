@@ -4,12 +4,9 @@ import type { Wallet } from "@aztec/aztec.js/wallet";
 import { Fr } from "@aztec/aztec.js/fields";
 import type { SendInteractionOptions, WaitOpts } from "@aztec/aztec.js/contracts";
 import {
-    type BaseMessageBridgeClient,
+    type BaseMessageBridgeReceiver,
     type EmitterConfig,
-    type SendResult,
-    type ReceiveResult,
     WORMHOLE_CHAIN_ID_AZTEC,
-    parseVaa,
     hexToBytes32Array,
     addressToBytes32,
 } from "@aztec-wormhole-demo/shared";
@@ -35,9 +32,9 @@ export interface AztecMessageBridgeClientOptions {
 /**
  * Client for interacting with the Aztec MessageBridge contract.
  *
- * Implements BaseMessageBridgeClient for cross-chain compatibility.
+ * Implements BaseMessageBridgeReceiver for cross-chain compatibility.
  */
-export class AztecMessageBridgeClient implements BaseMessageBridgeClient {
+export class AztecMessageBridgeClient implements BaseMessageBridgeReceiver {
     readonly wormholeChainId = WORMHOLE_CHAIN_ID_AZTEC;
     readonly chainName = "Aztec";
 
@@ -138,8 +135,9 @@ export class AztecMessageBridgeClient implements BaseMessageBridgeClient {
             .wait(this.waitOptions);
     }
 
-    async sendValue(destinationChainId: number, value: bigint): Promise<SendResult> {
-        return this.sendValuePublic(destinationChainId, value);
+    async sendValue(destinationChainId: number, value: bigint): Promise<string> {
+        // default to private send
+        return this.sendValuePrivate(destinationChainId, value);
     }
 
     // --------------------------------------------------------
@@ -149,45 +147,47 @@ export class AztecMessageBridgeClient implements BaseMessageBridgeClient {
     /**
      * Send value publicly (visible on-chain)
      */
-    async sendValuePublic(destinationChainId: number, value: bigint): Promise<SendResult> {
+    async sendValuePublic(destinationChainId: number, value: bigint): Promise<string> {
         const feeNonce = Fr.random();
-        const receipt = await this.bridge.methods
+       return await this.bridge.methods
             .send_value_public(destinationChainId, value, feeNonce)
             .send(this.sendOptions)
-            .wait(this.waitOptions);
-
-        return { txHash: receipt.txHash.toString() };
+            .wait(this.waitOptions)
+            .then(receipt => receipt.txHash.toString());
     }
 
     /**
      * Send value privately (encrypted)
      */
-    async sendValuePrivate(destinationChainId: number, value: bigint): Promise<SendResult> {
+    async sendValuePrivate(destinationChainId: number, value: bigint): Promise<string> {
+        // no message fee used
         const feeNonce = Fr.random();
-        const receipt = await this.bridge.methods
+        return await this.bridge.methods
             .send_value_private(destinationChainId, value, feeNonce)
             .send(this.sendOptions)
-            .wait(this.waitOptions);
-
-        return { txHash: receipt.txHash.toString() };
+            .wait(this.waitOptions)
+            .then(receipt => receipt.txHash.toString());
     }
 
     /**
      * Receive value from a VAA
      */
-    async receiveValue(vaa: Uint8Array): Promise<ReceiveResult> {
-        const { emitterChain, value } = parseVaa(vaa);
+    async receiveValue(vaaHex: string): Promise<string> {
+        // 1. parse VAA hex
+        const vaaBuffer = Buffer.from(vaaHex.startsWith('0x') ? vaaHex.slice(2) : vaaHex, 'hex');
+        
+        // 2. Pad VAA for circuit input
+        const paddedVAA = Buffer.alloc(2000);
+        vaaBuffer.copy(paddedVAA, 0, 0, Math.min(vaaBuffer.length, 2000));
+        const vaaBytes = Array.from(paddedVAA);
+        const vaaLength = vaaBuffer.length;
 
-        const receipt = await this.bridge.methods
-            .receive_value(Array.from(vaa) as any, vaa.length)
+        // 3. Call receive_value on the bridge
+        return await this.bridge.methods
+            .receive_value(vaaBytes, vaaLength)
             .send(this.sendOptions)
-            .wait(this.waitOptions);
-
-        return {
-            txHash: receipt.txHash.toString(),
-            value,
-            sourceChain: emitterChain,
-        };
+            .wait(this.waitOptions)
+            .then(receipt => receipt.txHash.toString());
     }
 
     /**

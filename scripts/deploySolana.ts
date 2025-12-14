@@ -7,7 +7,8 @@ import { readFileSync, writeFileSync, existsSync, unlinkSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { createSolanaClient, loadKeypair } from "./utils/solana";
+import { createSolanaClient } from "./utils/solana";
+import { loadKeypair } from "./utils/solana";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -17,7 +18,6 @@ const KEYPAIR_PATH = join(SOLANA_DIR, "target/deploy/message_bridge-keypair.json
 const LIB_RS_PATH = join(SOLANA_DIR, "programs/message_bridge/src/lib.rs");
 const ANCHOR_TOML_PATH = join(SOLANA_DIR, "Anchor.toml");
 
-// Default to devnet
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
 
 async function main() {
@@ -28,7 +28,7 @@ async function main() {
     const payer = loadKeypair();
     console.log(`  Payer: ${payer.publicKey.toBase58()}`);
 
-    // 1. Check for existing deployment and close if needed
+    // 1. Check for existing deployment
     const existingProgramId = process.env.SOLANA_BRIDGE_PROGRAM_ID;
     if (existingProgramId) {
         await handleExistingDeployment(connection, existingProgramId, payer);
@@ -36,152 +36,80 @@ async function main() {
 
     // 2. Generate new program keypair
     console.log("\n2. Generating new program keypair...");
-    const newProgramId = await generateNewProgramKeypair();
+    const newProgramId = generateNewProgramKeypair();
     console.log(`  New Program ID: ${newProgramId}`);
 
-    // 3. Update source files with new program ID
-    console.log("\n3. Updating source files with new program ID...");
+    // 3. Update source files
+    console.log("\n3. Updating source files...");
     updateProgramIdInSources(newProgramId);
 
-    // 4. Build the program
+    // 4. Build
     console.log("\n4. Building program...");
-    execSync("anchor build", {
-        cwd: SOLANA_DIR,
-        stdio: "inherit",
-    });
+    execSync("anchor build", { cwd: SOLANA_DIR, stdio: "inherit" });
 
-    // 5. Deploy to devnet
+    // 5. Deploy
     console.log("\n5. Deploying to devnet...");
-    execSync(`anchor deploy --provider.cluster devnet`, {
-        cwd: SOLANA_DIR,
-        stdio: "inherit",
-    });
-    console.log("Program deployed successfully!");
+    execSync("anchor deploy --provider.cluster devnet", { cwd: SOLANA_DIR, stdio: "inherit" });
 
-    // 6. Update .env with new program ID
-    updateRootEnv({
-        SOLANA_BRIDGE_PROGRAM_ID: newProgramId,
-        SOLANA_RPC_URL: SOLANA_RPC_URL,
-    });
+    // 6. Update .env
+    updateRootEnv({ SOLANA_BRIDGE_PROGRAM_ID: newProgramId, SOLANA_RPC_URL });
 
-    // 7. Initialize the bridge
+    // 7. Initialize
     console.log("\n6. Initializing bridge...");
-    await initializeBridge(newProgramId);
-    console.log("Bridge initialized successfully!");
+    await initializeBridge(newProgramId, payer);
 
-    // 8. Print summary
-    const { client } = createSolanaClient(SOLANA_RPC_URL, newProgramId);
-    const emitterAddress = client.getEmitterAddress();
-    const emitterHex = "0x" + Buffer.from(emitterAddress).toString("hex");
-
+    // 8. Summary
+    const { client } = await createSolanaClient(SOLANA_RPC_URL, newProgramId, payer);
     console.log("\n========================================");
     console.log("Deployment complete!");
     console.log(`Program ID: ${newProgramId}`);
-    console.log(`Emitter Address: ${emitterHex}`);
-    console.log(`Cluster: devnet`);
+    console.log(`Emitter: ${client.getEmitterAddress()}`);
     console.log("========================================");
-    console.log("\nNext steps:");
-    console.log("  1. Run 'pnpm register-emitters' to register emitters on all chains");
+    console.log("\nRun 'pnpm register-emitters' to register emitters");
 }
 
 async function handleExistingDeployment(connection: Connection, programId: string, payer: Keypair) {
     console.log(`\n1. Checking existing deployment: ${programId}`);
-
     try {
-        const pubkey = new PublicKey(programId);
-        const accountInfo = await connection.getAccountInfo(pubkey);
-
-        if (!accountInfo) {
-            console.log("  No existing deployment found (account doesn't exist).");
-            return;
+        const accountInfo = await connection.getAccountInfo(new PublicKey(programId));
+        if (accountInfo?.executable) {
+            console.log("  Found existing deployment. Closing...");
+            const before = await connection.getBalance(payer.publicKey);
+            try {
+                execSync(`solana program close ${programId} --bypass-warning`, { stdio: "inherit" });
+                const after = await connection.getBalance(payer.publicKey);
+                console.log(`  Recovered ${((after - before) / 1e9).toFixed(4)} SOL`);
+            } catch { console.log("  Could not close program"); }
         }
-
-        if (!accountInfo.executable) {
-            console.log("  Account exists but is not executable (already closed or not a program).");
-            return;
-        }
-
-        // Program exists and is executable - close it
-        console.log("  Found existing deployment. Closing to recover rent...");
-        const balanceBefore = await connection.getBalance(payer.publicKey);
-
-        try {
-            execSync(
-                `solana program close ${programId} --bypass-warning`,
-                { stdio: "inherit" }
-            );
-
-            const balanceAfter = await connection.getBalance(payer.publicKey);
-            const recovered = (balanceAfter - balanceBefore) / 1e9;
-            console.log(`  Recovered ${recovered.toFixed(4)} SOL`);
-        } catch (err: any) {
-            // Program might already be closed or we don't have authority
-            console.log(`  Could not close program: ${err.message}`);
-        }
-    } catch (err: any) {
-        console.log(`  Error checking existing deployment: ${err.message}`);
-    }
+    } catch { }
 }
 
-async function generateNewProgramKeypair(): Promise<string> {
-    // Remove old keypair if it exists
-    if (existsSync(KEYPAIR_PATH)) {
-        unlinkSync(KEYPAIR_PATH);
-    }
-
-    // Generate new keypair
-    execSync(
-        `solana-keygen new -o "${KEYPAIR_PATH}" --no-bip39-passphrase --force`,
-        { stdio: "pipe" }
-    );
-
-    // Read the new keypair and get the public key
+function generateNewProgramKeypair(): string {
+    if (existsSync(KEYPAIR_PATH)) unlinkSync(KEYPAIR_PATH);
+    execSync(`solana-keygen new -o "${KEYPAIR_PATH}" --no-bip39-passphrase --force`, { stdio: "pipe" });
     const keypairData = JSON.parse(readFileSync(KEYPAIR_PATH, "utf8"));
-    const keypair = Keypair.fromSecretKey(Uint8Array.from(keypairData));
-    return keypair.publicKey.toBase58();
+    return Keypair.fromSecretKey(Uint8Array.from(keypairData)).publicKey.toBase58();
 }
 
 function updateProgramIdInSources(newProgramId: string) {
-    // Update lib.rs
     let libRs = readFileSync(LIB_RS_PATH, "utf8");
-    libRs = libRs.replace(
-        /declare_id!\("[^"]+"\);/,
-        `declare_id!("${newProgramId}");`
-    );
+    libRs = libRs.replace(/declare_id!\("[^"]+"\);/, `declare_id!("${newProgramId}");`);
     writeFileSync(LIB_RS_PATH, libRs);
-    console.log(`  Updated lib.rs`);
 
-    // Update Anchor.toml
     let anchorToml = readFileSync(ANCHOR_TOML_PATH, "utf8");
-    anchorToml = anchorToml.replace(
-        /message_bridge = "[^"]+"/,
-        `message_bridge = "${newProgramId}"`
-    );
+    anchorToml = anchorToml.replace(/message_bridge = "[^"]+"/, `message_bridge = "${newProgramId}"`);
     writeFileSync(ANCHOR_TOML_PATH, anchorToml);
-    console.log(`  Updated Anchor.toml`);
 }
 
-async function initializeBridge(programId: string) {
-    const { client } = createSolanaClient(SOLANA_RPC_URL, programId);
-    const payer = loadKeypair();
-
-    console.log(`  Payer: ${payer.publicKey.toBase58()}`);
-
-    // Check if already initialized
-    const isInitialized = await client.isInitialized();
-    if (isInitialized) {
-        console.log("  Bridge already initialized, skipping.");
+async function initializeBridge(programId: string, payer: Keypair) {
+    const client = await createClient(programId, payer);
+    if (await client.isInitialized()) {
+        console.log("  Already initialized");
         return;
     }
-
-    // Get PDAs for logging
     const pdas = client.getPDAs();
     console.log(`  Config PDA: ${pdas.config.toBase58()}`);
-    console.log(`  CurrentValue PDA: ${pdas.currentValue.toBase58()}`);
-    console.log(`  WormholeEmitter PDA: ${pdas.wormholeEmitter.toBase58()}`);
-
-    // Initialize the bridge
-    const sig = await client.initialize(payer);
+    const sig = await client.initialize();
     console.log(`  Transaction: ${sig}`);
 }
 

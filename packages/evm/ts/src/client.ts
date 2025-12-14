@@ -6,11 +6,8 @@ import {
     getAddress,
 } from "viem";
 import {
-    type BaseMessageBridgeClient,
+    type BaseMessageBridgeEmitter,
     type EmitterConfig,
-    type SendResult,
-    type ReceiveResult,
-    parseVaa,
     addressToBytes32,
 } from "@aztec-wormhole-demo/shared";
 import { MESSAGE_BRIDGE_ABI, WORMHOLE_ABI } from "./abi";
@@ -36,9 +33,10 @@ export interface EvmMessageBridgeClientOptions {
 
 // ============================================================
 // EVM MESSAGE BRIDGE CLIENT
+// NOTE: EMITTER ONLY SINCE GO RELAYS EVM TX's DIRECTLY
 // ============================================================
 
-export class EvmMessageBridgeClient implements BaseMessageBridgeClient {
+export class EvmMessageBridgeClient implements BaseMessageBridgeEmitter {
     readonly chainName: string;
 
     private readonly publicClient: PublicClient;
@@ -151,9 +149,7 @@ export class EvmMessageBridgeClient implements BaseMessageBridgeClient {
         if (emitters.length === 0) return;
 
         const account = this.walletClient.account;
-        if (!account) {
-            throw new Error("Wallet client has no account");
-        }
+        if (!account) throw new Error("Wallet client has no account");
 
         const hash = await this.walletClient.writeContract({
             address: this.bridgeAddress,
@@ -171,54 +167,22 @@ export class EvmMessageBridgeClient implements BaseMessageBridgeClient {
         await this.publicClient.waitForTransactionReceipt({ hash });
     }
 
-    async sendValue(destinationChainId: number, value: bigint): Promise<SendResult> {
+    async sendValue(destinationChainId: number, value: bigint): Promise<string> {
         const account = this.walletClient.account;
-        if (!account) {
-            throw new Error("Wallet client has no account");
-        }
-
-        // Get Wormhole message fee
-        const messageFee = await this.getMessageFee();
+        if (!account) throw new Error("Wallet client has no account");
 
         const hash = await this.walletClient.writeContract({
             address: this.bridgeAddress,
             abi: MESSAGE_BRIDGE_ABI,
             functionName: "sendValue",
             args: [destinationChainId, value],
-            value: messageFee,
+            value: await this.getMessageFee(),
             account,
             chain: this.walletClient.chain,
         });
 
-        await this.publicClient.waitForTransactionReceipt({ hash });
-
-        return { txHash: hash };
-    }
-
-    async receiveValue(vaa: Uint8Array): Promise<ReceiveResult> {
-        const account = this.walletClient.account;
-        if (!account) {
-            throw new Error("Wallet client has no account");
-        }
-
-        const { emitterChain, value } = parseVaa(vaa);
-
-        const hash = await this.walletClient.writeContract({
-            address: this.bridgeAddress,
-            abi: MESSAGE_BRIDGE_ABI,
-            functionName: "receiveValue",
-            args: [`0x${Buffer.from(vaa).toString("hex")}`],
-            account,
-            chain: this.walletClient.chain,
-        });
-
-        await this.publicClient.waitForTransactionReceipt({ hash });
-
-        return {
-            txHash: hash,
-            value,
-            sourceChain: emitterChain,
-        };
+        return await this.publicClient.waitForTransactionReceipt({ hash })
+            .then(receipt => receipt.transactionHash);
     }
 
     // ============================================================
@@ -229,9 +193,7 @@ export class EvmMessageBridgeClient implements BaseMessageBridgeClient {
      * Get the Wormhole message fee
      */
     async getMessageFee(): Promise<bigint> {
-        if (!this._wormholeAddress) {
-            throw new Error("Wormhole address not loaded");
-        }
+        if (!this._wormholeAddress) throw new Error("Wormhole address not loaded");
 
         return this.publicClient.readContract({
             address: this._wormholeAddress,

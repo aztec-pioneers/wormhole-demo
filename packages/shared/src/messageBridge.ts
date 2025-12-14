@@ -21,26 +21,6 @@ export interface EmitterConfig {
     isDefaultPayload: boolean;
 }
 
-/**
- * Result of sending a cross-chain message
- */
-export interface SendResult {
-    /** Transaction hash or signature */
-    txHash: string;
-}
-
-/**
- * Result of receiving a cross-chain message
- */
-export interface ReceiveResult {
-    /** Transaction hash or signature */
-    txHash: string;
-    /** The value that was received */
-    value: bigint;
-    /** Source chain ID */
-    sourceChain: number;
-}
-
 // ============================================================
 // INTERFACE
 // ============================================================
@@ -59,7 +39,7 @@ export interface ReceiveResult {
  * Implementations should accept their chain's signer type in constructors
  * or as method parameters.
  */
-export interface BaseMessageBridgeClient {
+export interface BaseMessageBridgeEmitter {
     // --------------------------------------------------------
     // IDENTITY
     // --------------------------------------------------------
@@ -111,21 +91,17 @@ export interface BaseMessageBridgeClient {
      * @throws If caller is not the owner/admin
      */
     registerEmitters(emitters: EmitterConfig[]): Promise<void>;
+}
+
+
+export interface BaseMessageBridgeReceiver extends BaseMessageBridgeEmitter  {
 
     /**
      * Send a value to another chain via Wormhole.
      *
      * @param destinationChainId - Wormhole chain ID of the destination
      * @param value - The value to send (u128)
-     * @returns Transaction result with hash
+     * @returns Transaction hash
      */
-    sendValue(destinationChainId: number, value: bigint): Promise<SendResult>;
-
-    /**
-     * Receive a value from another chain via Wormhole.
-     *
-     * @param vaa - The raw VAA bytes (signed by guardians)
-     * @returns Transaction result with value and source chain
-     */
-    receiveValue(vaa: Uint8Array): Promise<ReceiveResult>;
+    sendValue(destinationChainId: number, value: bigint): Promise<string>;
 }

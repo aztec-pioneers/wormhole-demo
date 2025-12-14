@@ -32,10 +32,8 @@ import type {
     WormholePDAs,
 } from "./types.js";
 import {
-    type BaseMessageBridgeClient,
+    type BaseMessageBridgeReceiver,
     type EmitterConfig,
-    type SendResult,
-    type ReceiveResult,
     parseVaa,
 } from "@aztec-wormhole-demo/shared";
 
@@ -53,8 +51,7 @@ export interface SolanaMessageBridgeClientOptions {
 // ============================================================
 // MESSAGE BRIDGE CLIENT
 // ============================================================
-
-export class SolanaMessageBridgeClient implements BaseMessageBridgeClient {
+export class SolanaMessageBridgeClient implements BaseMessageBridgeReceiver {
     readonly wormholeChainId = WORMHOLE_CHAIN_ID_SOLANA;
     readonly chainName = "Solana";
 
@@ -266,7 +263,7 @@ export class SolanaMessageBridgeClient implements BaseMessageBridgeClient {
         await sendAndConfirmTransaction(this.connection, tx, [this.payer]);
     }
 
-    async sendValue(destinationChainId: number, value: bigint): Promise<SendResult> {
+    async sendValue(destinationChainId: number, value: bigint): Promise<string> {
         const config = await this.getConfig();
         if (!config) {
             throw new Error("Message bridge not initialized");
@@ -301,12 +298,10 @@ export class SolanaMessageBridgeClient implements BaseMessageBridgeClient {
         });
 
         const tx = new Transaction().add(ix);
-        const signature = await sendAndConfirmTransaction(this.connection, tx, [this.payer]);
-
-        return { txHash: signature };
+        return await sendAndConfirmTransaction(this.connection, tx, [this.payer]);
     }
 
-    async receiveValue(vaa: Uint8Array): Promise<ReceiveResult> {
+    async receiveValue(vaa: Uint8Array): Promise<string> {
         const { emitterChain, sequence, value, bodyHash } = parseVaa(vaa);
 
         const [postedVaa] = PublicKey.findProgramAddressSync(
@@ -340,13 +335,7 @@ export class SolanaMessageBridgeClient implements BaseMessageBridgeClient {
         });
 
         const tx = new Transaction().add(ix);
-        const signature = await sendAndConfirmTransaction(this.connection, tx, [this.payer]);
-
-        return {
-            txHash: signature,
-            value,
-            sourceChain: emitterChain,
-        };
+        return await sendAndConfirmTransaction(this.connection, tx, [this.payer]);
     }
 
     // ============================================================
