@@ -27,6 +27,8 @@ export function updateRootEnv(updates: Record<string, string>) {
         } else {
             envContent += `\n${key}=${value}`;
         }
+        // Also update process.env so changes take effect immediately
+        process.env[key] = value;
     }
 
     writeFileSync(rootEnvPath, envContent.trim() + "\n");

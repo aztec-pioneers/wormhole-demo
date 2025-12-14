@@ -1,0 +1,20 @@
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy workspace files
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/shared ./packages/shared
+COPY packages/aztec ./packages/aztec
+
+# Install dependencies (ignore postinstall scripts that need git/forge)
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+WORKDIR /app/packages/aztec
+
+EXPOSE 3000
+
+CMD ["pnpm", "start:service"]

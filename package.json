@@ -14,22 +14,30 @@
   },
   "scripts": {
     "postinstall": "git submodule update --init --recursive && cd packages/evm && forge install",
-    "build": "pnpm run build:aztec && pnpm run build:evm",
+    "build": "pnpm run build:aztec && pnpm run build:evm && pnpm run build:solana",
     "build:aztec": "tsx scripts/buildAztec.ts",
     "build:evm": "cd packages/evm && forge build --skip test",
+    "build:solana": "cd packages/solana/message_bridge && anchor build",
     "create-relayer-account": "tsx scripts/setupRelayerAccount.ts",
-    "deploy:evm": "tsx scripts/deployEVM.ts",
+    "deploy:arbitrum": "tsx scripts/deployEVM.ts --chain=arbitrum",
+    "deploy:base": "tsx scripts/deployEVM.ts --chain=base",
     "deploy:aztec": "tsx scripts/deployAztec.ts",
-    "deploy:all": "pnpm run deploy:evm && pnpm run deploy:aztec",
+    "deploy:solana": "tsx scripts/deploySolana.ts",
+    "deploy:all": "tsx scripts/deployEVM.ts --all && pnpm run deploy:aztec && pnpm run deploy:solana",
     "register-emitters": "tsx scripts/registerEmitters.ts",
-    "send:aztec": "tsx scripts/sendValueAztec.ts",
-    "send:evm": "tsx scripts/sendValueEVM.ts",
-    "read:values": "tsx scripts/readValues.ts",
     "read:emitters": "tsx scripts/readEmitters.ts",
+    "send": "tsx scripts/send.ts",
+    "read:values": "tsx scripts/readValues.ts",
     "relayer": "docker compose up"
   },
   "dependencies": {
-    "@aztec-wormhole-demo/aztec-contracts": "workspace:*"
+    "@aztec-wormhole-demo/aztec-sdk": "workspace:*",
+    "@aztec-wormhole-demo/solana-sdk": "workspace:^",
+    "@aztec-wormhole-demo/evm-sdk": "workspace:^",
+    "@aztec-wormhole-demo/shared": "workspace:*",
+    "@coral-xyz/anchor": "^0.30.1",
+    "@solana/web3.js": "^1.95.0",
+    "bs58": "^6.0.0"
   },
   "devDependencies": {
     "tsx": "^4.19.2"

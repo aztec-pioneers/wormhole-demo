@@ -10,6 +10,7 @@ Simple showcase of Aztec<>EVM cross chain communication
 - pnpm (v9+)
 - Aztec (v3.0.0-devnet.5)
 - Foundry (latest)
+- Solana CLI (v2.0+, funded on devnet)
 - Docker / Docker Compose
 
 ## Usage
@@ -34,8 +35,11 @@ cp .env.example .env
 
 # Update the following in .env
 
-## Must be a private key funded with arbitrum sepolia eth for deployment and relaying
+## Must be an eth private key funded with arbitrum sepolia eth tokens for deployment and relaying
 EVM_PRIVATE_KEY=0x...
+
+## Must be a solana private key funded with TESTNET (not devnet) solana tokens for deployment and relaying
+
 ETHERSCAN_API_KEY=...
 ## Optional: include your etherscan api key to verify the evm emitter source
 ```

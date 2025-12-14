@@ -1,3 +1,5 @@
 packages:
+  - 'packages/shared'
   - 'packages/aztec'
-  - 'packages/relayer'
+  - 'packages/evm/ts'
+  - 'packages/solana/ts'

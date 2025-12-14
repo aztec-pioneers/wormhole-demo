@@ -1,6 +1,6 @@
 use aztec::macros::aztec;
 
-pub mod config;
+pub mod types;
 pub mod utils;
 
 #[aztec]
@@ -14,7 +14,7 @@ pub contract MessageBridge {
         state_vars::{map::Map, public_mutable::PublicMutable, public_immutable::PublicImmutable},
     };
     use crate::{
-        config::Config,
+        types::{config::Config, emitter::Emitter},
         utils::vaa::{encode_message_payload, decode_vaa},
     };
     use wormhole::Wormhole;
@@ -33,7 +33,7 @@ pub contract MessageBridge {
 
         // Registered emitters
         // chain id => emitter address (one emitter per chain)
-        registered_emitters: Map<u16, PublicMutable<[u8; 32], Context>, Context>,
+        registered_emitters: Map<u16, PublicImmutable<Emitter, Context>, Context>,
 
         // currently stored value
         current_value: PublicMutable<u128, Context>,
@@ -50,11 +50,13 @@ pub contract MessageBridge {
         chain_id: u16,
         owner: AztecAddress,
         message_fee: u128,
+        consistency: u8
     ) {
         storage.config.initialize(Config::new(
             wormhole_address,
             chain_id,
             message_fee,
+            consistency
         ));
         storage.owner.write(owner);
 
@@ -62,16 +64,35 @@ pub contract MessageBridge {
         storage.current_value.write(0);
     }
 
+    /**
+     * Register up to 8 emitter addresses for source chains
+     *
+     * @param source_chain_id The chain ID of the source chain
+     */
     #[external("public")]
-    fn register_emitter(source_chain_id: u16, emitter_address: [u8; 32]) {
+    fn register_emitter(
+        source_chain_ids: BoundedVec<u16, 8>,
+        emitter_addresses: BoundedVec<[u8; 32], 8>,
+    ) {
         // 1. check caller is admin
         let owner = storage.owner.read();
         assert(owner == context.msg_sender().unwrap(), "Caller is not owner");
 
-        // 2. register emitter (store full 32-byte address)
-        storage.registered_emitters
-            .at(source_chain_id)
-            .write(emitter_address);
+        // 2. check lengths match
+        assert(
+            source_chain_ids.len() == emitter_addresses.len(),
+            "Source chain IDs and emitter addresses length mismatch"
+        );
+        // 3. register emitters (store full 32-byte addresses)
+        for i in 0..8 {
+            if i < source_chain_ids.len() {
+                let source_chain_id = source_chain_ids.get_unchecked(i);
+                let emitter_address = emitter_addresses.get_unchecked(i);
+                storage.registered_emitters
+                    .at(source_chain_id)
+                    .initialize(Emitter { address: emitter_address });
+            }
+        }
     }
 
     // ============================================================================
@@ -96,7 +117,7 @@ pub contract MessageBridge {
             0, // nonce
             wormhole_payload,
             config.message_fee,
-            1, // consistency level (1 = confirmed)
+            config.consistency,
             caller,
             fee_nonce,
         ).call(&mut context);
@@ -120,7 +141,7 @@ pub contract MessageBridge {
             0, // nonce
             wormhole_payload,
             config.message_fee,
-            1, // consistency level (1 = confirmed)
+            config.consistency,
             caller,
             fee_nonce,
         ).call(&mut context);
@@ -169,7 +190,7 @@ pub contract MessageBridge {
         // Validate emitter from VAA envelope (not sender from payload)
         let registered_emitter = storage.registered_emitters
             .at(emitter_chain_id)
-            .read();
+            .read().address;
         assert(registered_emitter == emitter_address, "Emitter not registered");
 
         // Update state with received value
@@ -194,7 +215,7 @@ pub contract MessageBridge {
     unconstrained fn is_emitter_registered(chain_id: u16, emitter_address: [u8; 32]) -> bool {
         let registered_emitter = storage.registered_emitters
             .at(chain_id)
-            .read();
+            .read().address;
         registered_emitter == emitter_address
     }
 
@@ -202,7 +223,7 @@ pub contract MessageBridge {
     unconstrained fn get_registered_emitter(chain_id: u16) -> [u8; 32] {
         storage.registered_emitters
             .at(chain_id)
-            .read()
+            .read().address
     }
 
     #[external("utility")]

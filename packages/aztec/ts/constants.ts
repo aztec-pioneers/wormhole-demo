@@ -1,2 +1,0 @@
-export const AZTEC_WORMHOLE_CHAIN_ID = 56;
-export const ARBITRUM_SEPOLIA_CHAIN_ID = 10003;

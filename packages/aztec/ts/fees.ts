@@ -15,7 +15,7 @@ import { SponsoredFPCContractArtifact } from '@aztec/noir-contracts.js/Sponsored
 import { GasSettings } from '@aztec/stdlib/gas';
 import { deriveStorageSlotInMap } from '@aztec/stdlib/hash';
 import type { TestWallet } from '@aztec/test-wallet/server';
-import { precision } from './utils';
+import { precision } from '@aztec-wormhole-demo/shared';
 
 export async function getSponsoredPaymentMethod(wallet: BaseWallet) {
     const instance = await getSponsoredFPCInstance();

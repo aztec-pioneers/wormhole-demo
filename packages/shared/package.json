@@ -1,0 +1,22 @@
+{
+  "name": "@aztec-wormhole-demo/shared",
+  "version": "1.0.0",
+  "description": "Shared constants for Wormhole demo",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./constants": {
+      "import": "./src/constants.ts",
+      "types": "./src/constants.ts"
+    }
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.6.0"
+  }
+}

@@ -18,7 +18,7 @@
   "exclude": [
     "node_modules",
     "contracts",
-    "target",
+    "src",
     "dist"
   ]
 }
