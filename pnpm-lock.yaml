@@ -57,6 +57,9 @@ importers:
       '@aztec/foundation':
         specifier: 3.0.0-devnet.5
         version: 3.0.0-devnet.5
+      '@aztec/kv-store':
+        specifier: 3.0.0-devnet.5
+        version: 3.0.0-devnet.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@aztec/noir-contracts.js':
         specifier: 3.0.0-devnet.5
         version: 3.0.0-devnet.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -91,49 +94,9 @@ importers:
       tsup:
         specifier: ^8.3.5
         version: 8.5.1(tsx@4.21.0)(typescript@5.9.3)
-
-  packages/aztec-vaa-service:
-    dependencies:
-      '@aztec-wormhole-demo/aztec-sdk':
-        specifier: workspace:*
-        version: link:../aztec
-      '@aztec/aztec.js':
-        specifier: 3.0.0-devnet.5
-        version: 3.0.0-devnet.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@aztec/foundation':
-        specifier: 3.0.0-devnet.5
-        version: 3.0.0-devnet.5
-      '@aztec/kv-store':
-        specifier: 3.0.0-devnet.5
-        version: 3.0.0-devnet.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@aztec/pxe':
-        specifier: 3.0.0-devnet.5
-        version: 3.0.0-devnet.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-      '@aztec/stdlib':
-        specifier: 3.0.0-devnet.5
-        version: 3.0.0-devnet.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@aztec/test-wallet':
-        specifier: 3.0.0-devnet.5
-        version: 3.0.0-devnet.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-      '@types/express':
-        specifier: ^5.0.6
-        version: 5.0.6
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.2
-      dotenv:
-        specifier: ^16.4.7
-        version: 16.6.1
-      express:
-        specifier: ^5.2.1
-        version: 5.2.1
-    devDependencies:
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
 
   packages/evm/ts:
     dependencies:
@@ -154,11 +117,14 @@ importers:
         specifier: ^1.6.0
         version: 1.8.0
 
-  packages/solana-vaa-service:
+  packages/solana/ts:
     dependencies:
-      '@aztec-wormhole-demo/solana-sdk':
+      '@aztec-wormhole-demo/shared':
         specifier: workspace:*
-        version: link:../solana/ts
+        version: link:../../shared
+      '@coral-xyz/anchor':
+        specifier: ^0.30.1
+        version: 0.30.1(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@solana/web3.js':
         specifier: ^1.95.0
         version: 1.98.4(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -187,22 +153,6 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-
-  packages/solana/ts:
-    dependencies:
-      '@aztec-wormhole-demo/shared':
-        specifier: workspace:*
-        version: link:../../shared
-      '@coral-xyz/anchor':
-        specifier: ^0.30.1
-        version: 0.30.1(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@solana/web3.js':
-        specifier: ^1.95.0
-        version: 1.98.4(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
-    devDependencies:
       typescript:
         specifier: ^5.0.0
         version: 5.9.3

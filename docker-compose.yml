@@ -3,7 +3,7 @@ services:
   vaa-service:
     build:
       context: .
-      dockerfile: packages/aztec-vaa-service/Dockerfile
+      dockerfile: packages/aztec/Dockerfile.service
     ports:
       - "3000:3000"
     environment:
@@ -114,8 +114,8 @@ services:
   # Solana VAA Posting Service - posts VAAs to Wormhole on Solana
   solana-vaa-service:
     build:
-      context: ./packages/solana-vaa-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: packages/solana/ts/Dockerfile.service
     ports:
       - "3001:3001"
     environment:

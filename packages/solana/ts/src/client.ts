@@ -9,6 +9,9 @@ import {
     TransactionInstruction,
     sendAndConfirmTransaction,
 } from "@solana/web3.js";
+import { wormhole, signSendWait, deserialize, type Wormhole } from "@wormhole-foundation/sdk";
+import solana from "@wormhole-foundation/sdk/solana";
+import { getSolanaSignAndSendSigner } from "@wormhole-foundation/sdk-solana";
 import {
     SEED_CONFIG,
     SEED_CURRENT_VALUE,
@@ -302,46 +305,113 @@ export class SolanaMessageBridgeClient implements BaseMessageBridgeReceiver {
     }
 
     async receiveValue(vaaHex: string): Promise<string> {
-        // const { emitterChain, sequence, value, bodyHash } = parseVaa(vaa);
+        // Parse VAA hex to bytes
+        const vaaBytes = Buffer.from(
+            vaaHex.startsWith("0x") ? vaaHex.slice(2) : vaaHex,
+            "hex"
+        );
+        const vaa = new Uint8Array(vaaBytes);
 
-        // const [postedVaa] = PublicKey.findProgramAddressSync(
-        //     [SEED_WORMHOLE_POSTED_VAA, bodyHash],
-        //     this.wormholeProgramId
-        // );
+        // Parse VAA to get emitter chain, sequence, and body hash
+        const { emitterChain, sequence, bodyHash } = parseVaa(vaa);
 
-        // const pdas = this.getPDAs();
-        // const [foreignEmitter] = this.getForeignEmitterPDA(emitterChain);
-        // const [receivedMessage] = this.getReceivedMessagePDA(emitterChain, sequence);
+        // Derive PostedVAA PDA from body hash
+        const [postedVaa] = PublicKey.findProgramAddressSync(
+            [SEED_WORMHOLE_POSTED_VAA, bodyHash],
+            this.wormholeProgramId
+        );
 
-        // const data = Buffer.alloc(8 + 32 + 2 + 8);
-        // DISCRIMINATORS.receiveValue.copy(data, 0);
-        // Buffer.from(bodyHash).copy(data, 8);
-        // data.writeUInt16LE(emitterChain, 40);
-        // data.writeBigUInt64LE(sequence, 42);
+        // Get program PDAs
+        const pdas = this.getPDAs();
+        const [foreignEmitter] = this.getForeignEmitterPDA(emitterChain);
+        const [receivedMessage] = this.getReceivedMessagePDA(emitterChain, sequence);
 
-        // const ix = new TransactionInstruction({
-        //     keys: [
-        //         { pubkey: this.payer.publicKey, isSigner: true, isWritable: true },
-        //         { pubkey: pdas.config, isSigner: false, isWritable: false },
-        //         { pubkey: pdas.currentValue, isSigner: false, isWritable: true },
-        //         { pubkey: this.wormholeProgramId, isSigner: false, isWritable: false },
-        //         { pubkey: postedVaa, isSigner: false, isWritable: false },
-        //         { pubkey: foreignEmitter, isSigner: false, isWritable: false },
-        //         { pubkey: receivedMessage, isSigner: false, isWritable: true },
-        //         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-        //     ],
-        //     programId: this.programId,
-        //     data,
-        // });
+        // Build instruction data: discriminator + vaa_hash (32) + emitter_chain (2) + sequence (8)
+        const data = Buffer.alloc(8 + 32 + 2 + 8);
+        DISCRIMINATORS.receiveValue.copy(data, 0);
+        Buffer.from(bodyHash).copy(data, 8);
+        data.writeUInt16LE(emitterChain, 40);
+        data.writeBigUInt64LE(sequence, 42);
 
-        // const tx = new Transaction().add(ix);
-        // return await sendAndConfirmTransaction(this.connection, tx, [this.payer]);
-        return "";
+        const ix = new TransactionInstruction({
+            keys: [
+                { pubkey: this.payer.publicKey, isSigner: true, isWritable: true },
+                { pubkey: pdas.config, isSigner: false, isWritable: false },
+                { pubkey: pdas.currentValue, isSigner: false, isWritable: true },
+                { pubkey: this.wormholeProgramId, isSigner: false, isWritable: false },
+                { pubkey: postedVaa, isSigner: false, isWritable: false },
+                { pubkey: foreignEmitter, isSigner: false, isWritable: false },
+                { pubkey: receivedMessage, isSigner: false, isWritable: true },
+                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+            ],
+            programId: this.programId,
+            data,
+        });
+
+        const tx = new Transaction().add(ix);
+        return await sendAndConfirmTransaction(this.connection, tx, [this.payer]);
     }
 
     // ============================================================
     // SOLANA-SPECIFIC OPERATIONS
     // ============================================================
+
+    /**
+     * Post a VAA to the Wormhole core bridge on Solana.
+     * This is a prerequisite for calling receiveValue() - the VAA must be
+     * posted to Wormhole before it can be consumed by the message bridge.
+     *
+     * @param vaaHex - VAA bytes as hex string
+     * @returns Transaction signature, or "already_posted" if VAA exists
+     */
+    async postVaaToWormhole(vaaHex: string): Promise<string> {
+        const vaaBytes = Buffer.from(
+            vaaHex.startsWith("0x") ? vaaHex.slice(2) : vaaHex,
+            "hex"
+        );
+        const vaa = new Uint8Array(vaaBytes);
+
+        // Check if already posted
+        const { bodyHash } = parseVaa(vaa);
+        const [postedVaaPda] = PublicKey.findProgramAddressSync(
+            [SEED_WORMHOLE_POSTED_VAA, bodyHash],
+            this.wormholeProgramId
+        );
+
+        const existingAccount = await this.connection.getAccountInfo(postedVaaPda);
+        if (existingAccount !== null) {
+            return "already_posted";
+        }
+
+        // Initialize Wormhole SDK
+        const wh = await wormhole("Devnet", [solana], {
+            chains: {
+                Solana: {
+                    rpc: this.connection.rpcEndpoint,
+                    contracts: {
+                        coreBridge: this.wormholeProgramId.toBase58(),
+                    },
+                },
+            },
+        });
+
+        // Get Solana chain context and core bridge
+        const chain = wh.getChain("Solana");
+        const coreBridge = await chain.getWormholeCore();
+
+        // Deserialize VAA and create signer
+        const parsedVaa = deserialize("Uint8Array", vaa);
+        const signer = await getSolanaSignAndSendSigner(this.connection, this.payer, {
+            retries: 3,
+        });
+
+        // Post the VAA (cast address - SDK types are loose with tsx)
+        const verifyTxs = coreBridge.verifyMessage(signer.address() as any, parsedVaa);
+        const txids = await signSendWait(chain, verifyTxs, signer);
+
+        const lastTxid = txids[txids.length - 1];
+        return lastTxid?.txid || "posted";
+    }
 
     async initialize(): Promise<string> {
         const pdas = this.getPDAs();

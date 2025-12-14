@@ -171,11 +171,13 @@ export class AztecMessageBridgeClient implements BaseMessageBridgeReceiver {
 
     /**
      * Receive value from a VAA
+     * @param vaaHex - VAA bytes as hex string
+     * @param sendOptionsOverride - Optional override for send options (e.g., custom fees)
      */
-    async receiveValue(vaaHex: string): Promise<string> {
+    async receiveValue(vaaHex: string, sendOptionsOverride?: SendInteractionOptions): Promise<string> {
         // 1. parse VAA hex
         const vaaBuffer = Buffer.from(vaaHex.startsWith('0x') ? vaaHex.slice(2) : vaaHex, 'hex');
-        
+
         // 2. Pad VAA for circuit input
         const paddedVAA = Buffer.alloc(2000);
         vaaBuffer.copy(paddedVAA, 0, 0, Math.min(vaaBuffer.length, 2000));
@@ -185,7 +187,7 @@ export class AztecMessageBridgeClient implements BaseMessageBridgeReceiver {
         // 3. Call receive_value on the bridge
         return await this.bridge.methods
             .receive_value(vaaBytes, vaaLength)
-            .send(this.sendOptions)
+            .send(sendOptionsOverride ?? this.sendOptions)
             .wait(this.waitOptions)
             .then(receipt => receipt.txHash.toString());
     }
