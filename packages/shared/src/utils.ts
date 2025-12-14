@@ -23,3 +23,10 @@ export function addressToBytes32(address: string): string {
     const clean = address.replace("0x", "").toLowerCase();
     return `0x${clean.padStart(64, "0")}`;
 }
+
+/**
+ * Convert a [u8; 32] array to hex string
+ */
+export function bytes32ArrayToHex(bytes: number[]): string {
+    return `0x${bytes.map(b => b.toString(16).padStart(2, "0")).join("")}`;
+}

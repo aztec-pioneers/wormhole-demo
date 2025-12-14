@@ -1,16 +1,13 @@
 #!/usr/bin/env node
-import { loadRootEnv, updateRootEnv } from "./utils/env";
+import { loadRootEnv, updateRootEnv, requireEnv } from "./utils/env";
 loadRootEnv();
-import { TESTNET_PXE_CONFIG, testnetSendWaitOpts } from "./utils/aztec";
+import { getTestnetPxeConfig, testnetSendWaitOpts } from "./utils/aztec";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { Fr } from "@aztec/aztec.js/fields";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 
-const { AZTEC_NODE_URL = "http://localhost:8080" } = process.env;
-if (!AZTEC_NODE_URL) {
-    throw new Error("AZTEC_NODE_URL not set in .env");
-}
+const AZTEC_NODE_URL = requireEnv("AZTEC_NODE_URL");
 
 const main = async () => {
     console.log(`Connecting to Aztec Node at ${AZTEC_NODE_URL}...`);
@@ -18,7 +15,7 @@ const main = async () => {
 
     // Create single account
     console.log("Creating account...");
-    const wallet = await TestWallet.create(node, TESTNET_PXE_CONFIG);
+    const wallet = await TestWallet.create(node, getTestnetPxeConfig());
 
     const secretKey = Fr.random();
     const salt = Fr.random();

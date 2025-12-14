@@ -61,8 +61,8 @@ func (c *EVMClient) GetAddress() common.Address {
 	return c.address
 }
 
-// SendVerifyTransaction sends a transaction to the verify function to process and store a VAA
-func (c *EVMClient) SendVerifyTransaction(ctx context.Context, targetContract string, vaaBytes []byte) (string, error) {
+// RelayVAA sends a VAA to the target contract's receiveValue function
+func (c *EVMClient) RelayVAA(ctx context.Context, targetContract string, vaaBytes []byte) (string, error) {
 	c.logger.Debug("Sending verify transaction to EVM", zap.Int("vaaLength", len(vaaBytes)))
 
 	// Contract ABI for the receiveValue function

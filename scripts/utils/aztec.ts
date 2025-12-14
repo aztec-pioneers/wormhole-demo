@@ -18,15 +18,8 @@ export function getTestnetPxeConfig(): Partial<PXEConfig> {
     };
 }
 
-// For backwards compatibility - lazy getter
-export const TESTNET_PXE_CONFIG: Partial<PXEConfig> = new Proxy({} as Partial<PXEConfig>, {
-    get(_, prop) {
-        return getTestnetPxeConfig()[prop as keyof Partial<PXEConfig>];
-    }
-});
-
 export const TESTNET_TIMEOUT = 3600; // seconds until timeout waiting for send
-export const TESTNET_INTERNAL = 3; // seconds between polling for tx
+export const TESTNET_INTERVAL = 3; // seconds between polling for tx
 export const MESSAGE_FEE = 0n; // default message fee for wormhole
 
 export async function isDevnet(node: AztecNode): Promise<boolean> {
@@ -48,7 +41,7 @@ export async function testnetSendWaitOpts(
     };
     return {
         send: { from, fee },
-        wait: { timeout: TESTNET_TIMEOUT, interval: TESTNET_INTERNAL }
+        wait: { timeout: TESTNET_TIMEOUT, interval: TESTNET_INTERVAL }
     };
 }
 

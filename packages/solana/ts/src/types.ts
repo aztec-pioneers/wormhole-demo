@@ -32,23 +32,6 @@ export interface CurrentValue {
 }
 
 /**
- * Received message (for replay protection)
- */
-export interface ReceivedMessage {
-    sequence: bigint;
-    emitterChain: number;
-    value: bigint;
-    batchId: number;
-}
-
-/**
- * Wormhole emitter account
- */
-export interface WormholeEmitter {
-    bump: number;
-}
-
-/**
  * PDA addresses for the program
  */
 export interface ProgramPDAs {

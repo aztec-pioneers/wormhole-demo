@@ -1,16 +1,11 @@
 #!/usr/bin/env node
-import { loadRootEnv } from "./utils/env";
+import { loadRootEnv, updateRootEnv, requireEnv, ROOT_DIR } from "./utils/env";
 loadRootEnv();
 import { execSync } from "child_process";
 import { readFileSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
-import { updateRootEnv } from "./utils/env";
+import { join } from "path";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const EVM_DIR = join(__dirname, "../packages/evm");
+const EVM_DIR = join(ROOT_DIR, "packages/evm");
 
 type ChainName = "arbitrum" | "base";
 
@@ -28,9 +23,9 @@ interface ChainConfig {
 const CHAIN_CONFIGS: Record<ChainName, ChainConfig> = {
     arbitrum: {
         rpcEnvVar: "ARBITRUM_RPC_URL",
-        wormholeAddressEnvVar: "EVM_WORMHOLE_ADDRESS",
-        wormholeChainIdEnvVar: "EVM_CHAIN_ID",
-        consistencyEnvVar: "EVM_WORMHOLE_CONSISTENCY",
+        wormholeAddressEnvVar: "ARBITRUM_WORMHOLE_ADDRESS",
+        wormholeChainIdEnvVar: "ARBITRUM_WORMHOLE_CHAIN_ID",
+        consistencyEnvVar: "ARBITRUM_WORMHOLE_CONSISTENCY",
         bridgeAddressEnvVar: "ARBITRUM_BRIDGE_ADDRESS",
         evmChainId: "421614",
         verifierUrl: "https://api.etherscan.io/v2/api?chainid=421614",
@@ -39,7 +34,7 @@ const CHAIN_CONFIGS: Record<ChainName, ChainConfig> = {
     base: {
         rpcEnvVar: "BASE_RPC_URL",
         wormholeAddressEnvVar: "BASE_WORMHOLE_ADDRESS",
-        wormholeChainIdEnvVar: "BASE_CHAIN_ID",
+        wormholeChainIdEnvVar: "BASE_WORMHOLE_CHAIN_ID",
         consistencyEnvVar: "BASE_WORMHOLE_CONSISTENCY",
         bridgeAddressEnvVar: "BASE_BRIDGE_ADDRESS",
         evmChainId: "84532",
@@ -71,18 +66,12 @@ function parseArgs(): { chains: ChainName[] } {
 async function deployToChain(chainName: ChainName) {
     const config = CHAIN_CONFIGS[chainName];
 
-    const rpcUrl = process.env[config.rpcEnvVar];
-    const wormholeAddress = process.env[config.wormholeAddressEnvVar];
-    const wormholeChainId = process.env[config.wormholeChainIdEnvVar];
-    const consistency = process.env[config.consistencyEnvVar];
-    const privateKey = process.env.EVM_PRIVATE_KEY;
+    const privateKey = requireEnv("EVM_PRIVATE_KEY");
+    const rpcUrl = requireEnv(config.rpcEnvVar);
+    const wormholeAddress = requireEnv(config.wormholeAddressEnvVar);
+    const wormholeChainId = requireEnv(config.wormholeChainIdEnvVar);
+    const consistency = requireEnv(config.consistencyEnvVar);
     const etherscanApiKey = process.env.ETHERSCAN_API_KEY;
-
-    if (!privateKey) throw new Error("EVM_PRIVATE_KEY not set in .env");
-    if (!rpcUrl) throw new Error(`${config.rpcEnvVar} not set in .env`);
-    if (!wormholeAddress) throw new Error(`${config.wormholeAddressEnvVar} not set in .env`);
-    if (!wormholeChainId) throw new Error(`${config.wormholeChainIdEnvVar} not set in .env`);
-    if (!consistency) throw new Error(`${config.consistencyEnvVar} not set in .env`);
 
     console.log(`\n${"=".repeat(60)}`);
     console.log(`Deploying MessageBridge to ${config.displayName}...`);

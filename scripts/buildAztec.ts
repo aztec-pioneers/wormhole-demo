@@ -1,15 +1,11 @@
 #!/usr/bin/env node
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
 import { execCommand, copyFileWithLog, replaceInFile } from "./utils/cmd.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { ROOT_DIR } from "./utils/env.js";
 
 async function main() {
     try {
-        const rootDir = join(__dirname, "..");
-        const aztecDir = join(rootDir, "packages/aztec");
+        const aztecDir = join(ROOT_DIR, "packages/aztec");
         console.log(`Working in aztec directory: ${aztecDir}...`);
         process.chdir(aztecDir);
 

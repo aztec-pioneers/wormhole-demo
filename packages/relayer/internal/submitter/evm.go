@@ -39,7 +39,7 @@ func (s *EVMSubmitter) SubmitVAA(ctx context.Context, vaaBytes []byte) (string, 
 
 	// Direct submission to EVM chain
 	s.logger.Debug("Submitting VAA directly to EVM chain")
-	txHash, err := s.evmClient.SendVerifyTransaction(ctx, s.targetContract, vaaBytes)
+	txHash, err := s.evmClient.RelayVAA(ctx, s.targetContract, vaaBytes)
 	if err != nil {
 		return "", fmt.Errorf("failed to submit VAA to EVM: %w", err)
 	}

@@ -121,9 +121,9 @@ export class AztecMessageBridgeClient implements BaseMessageBridgeReceiver {
     }
 
     async isEmitterRegistered(chainId: number, emitter: string): Promise<boolean> {
-        const emitterBytes = hexToBytes32Array(emitter);
+        const emitterBytes = hexToBytes32Array(emitter) as (bigint | number)[];
         return this.bridge.methods
-            .is_emitter_registered(chainId, emitterBytes as any)
+            .is_emitter_registered(chainId, emitterBytes)
             .simulate({ from: this.accountAddress });
     }
 
@@ -134,11 +134,11 @@ export class AztecMessageBridgeClient implements BaseMessageBridgeReceiver {
     async registerEmitters(emitters: EmitterConfig[]): Promise<void> {
         if (emitters.length === 0) return;
 
-        const chainIds = emitters.map(e => e.chainId);
-        const emitterAddresses = emitters.map(e => hexToBytes32Array(e.emitter));
+        const chainIds = emitters.map(e => e.chainId) as (bigint | number)[];
+        const emitterAddresses = emitters.map(e => hexToBytes32Array(e.emitter)) as (bigint | number)[][];
 
         await this.bridge.methods
-            .register_emitter(chainIds as any, emitterAddresses as any)
+            .register_emitter(chainIds, emitterAddresses)
             .send(this.sendOptions)
             .wait(this.waitOptions);
     }

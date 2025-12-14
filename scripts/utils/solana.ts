@@ -1,14 +1,12 @@
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import { readFileSync, existsSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
 import { SolanaMessageBridgeClient, WORMHOLE_PROGRAM_ID } from "@aztec-wormhole-demo/solana-sdk";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { ROOT_DIR } from "./env";
 
 // Default paths
-const SOLANA_DIR = join(__dirname, "../../packages/solana/message_bridge");
+const SOLANA_DIR = join(ROOT_DIR, "packages/solana/message_bridge");
 const DEFAULT_KEYPAIR_PATH = join(process.env.HOME || "~", ".config/solana/id.json");
 
 /**

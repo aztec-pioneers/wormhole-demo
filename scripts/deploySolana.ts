@@ -1,19 +1,15 @@
 #!/usr/bin/env node
-import { loadRootEnv, updateRootEnv } from "./utils/env";
+import { loadRootEnv, updateRootEnv, ROOT_DIR } from "./utils/env";
 loadRootEnv();
 
 import { execSync } from "child_process";
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { createSolanaClient } from "./utils/clients";
 import { loadKeypair } from "./utils/solana";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const SOLANA_DIR = join(__dirname, "../packages/solana/message_bridge");
+const SOLANA_DIR = join(ROOT_DIR, "packages/solana/message_bridge");
 const KEYPAIR_PATH = join(SOLANA_DIR, "target/deploy/message_bridge-keypair.json");
 const LIB_RS_PATH = join(SOLANA_DIR, "programs/message_bridge/src/lib.rs");
 const ANCHOR_TOML_PATH = join(SOLANA_DIR, "Anchor.toml");

@@ -17,6 +17,7 @@ import { SolanaMessageBridgeClient, WORMHOLE_PROGRAM_ID } from "@aztec-wormhole-
 import { AztecMessageBridgeClient, getPriorityFeeOptions, getSponsoredPaymentMethod } from "@aztec-wormhole-demo/aztec-contracts";
 import { loadKeypair } from "./solana";
 import { getTestnetPxeConfig } from "./aztec";
+import { requireEnv } from "./env";
 
 // ============================================================
 // EVM CLIENTS
@@ -41,13 +42,9 @@ export type EvmChainName = keyof typeof EVM_CHAINS;
 
 export async function createEvmClient(chainName: EvmChainName): Promise<EvmMessageBridgeClient> {
     const config = EVM_CHAINS[chainName];
-    const rpcUrl = process.env[config.rpcEnvVar];
-    const bridgeAddress = process.env[config.bridgeEnvVar];
-    const privateKey = process.env.EVM_PRIVATE_KEY;
-
-    if (!privateKey) throw new Error("EVM_PRIVATE_KEY not set in .env");
-    if (!rpcUrl) throw new Error(`${config.rpcEnvVar} not set in .env`);
-    if (!bridgeAddress) throw new Error(`${config.bridgeEnvVar} not set in .env`);
+    const privateKey = requireEnv("EVM_PRIVATE_KEY");
+    const rpcUrl = requireEnv(config.rpcEnvVar);
+    const bridgeAddress = requireEnv(config.bridgeEnvVar);
 
     const account = privateKeyToAccount(privateKey as `0x${string}`);
     const publicClient = createPublicClient({ chain: config.chain, transport: http(rpcUrl) });
@@ -61,19 +58,13 @@ export async function createEvmClient(chainName: EvmChainName): Promise<EvmMessa
     });
 }
 
-export const createArbitrumClient = () => createEvmClient("arbitrum");
-export const createBaseClient = () => createEvmClient("base");
-
 // ============================================================
 // SOLANA CLIENT
 // ============================================================
 
 export async function createSolanaClient(): Promise<SolanaMessageBridgeClient> {
-    const rpcUrl = process.env.SOLANA_RPC_URL;
-    const programId = process.env.SOLANA_BRIDGE_PROGRAM_ID;
-
-    if (!rpcUrl) throw new Error("SOLANA_RPC_URL not set in .env");
-    if (!programId) throw new Error("SOLANA_BRIDGE_PROGRAM_ID not set in .env");
+    const rpcUrl = requireEnv("SOLANA_RPC_URL");
+    const programId = requireEnv("SOLANA_BRIDGE_PROGRAM_ID");
 
     const connection = new Connection(rpcUrl, "confirmed");
     const payer = loadKeypair();
@@ -95,16 +86,11 @@ export async function createSolanaClient(): Promise<SolanaMessageBridgeClient> {
 // ============================================================
 
 export async function createAztecClient(): Promise<AztecMessageBridgeClient> {
-    const nodeUrl = process.env.AZTEC_NODE_URL;
-    const bridgeAddress = process.env.AZTEC_BRIDGE_ADDRESS;
-    const wormholeAddress = process.env.AZTEC_WORMHOLE_ADDRESS;
-    const privateKey = process.env.AZTEC_RELAYER_PRIVATE_KEY;
-    const salt = process.env.AZTEC_RELAYER_SALT;
-
-    if (!nodeUrl) throw new Error("AZTEC_NODE_URL not set in .env");
-    if (!bridgeAddress) throw new Error("AZTEC_BRIDGE_ADDRESS not set in .env");
-    if (!wormholeAddress) throw new Error("AZTEC_WORMHOLE_ADDRESS not set in .env");
-    if (!privateKey || !salt) throw new Error("AZTEC_RELAYER_PRIVATE_KEY and AZTEC_RELAYER_SALT not set in .env");
+    const nodeUrl = requireEnv("AZTEC_NODE_URL");
+    const bridgeAddress = requireEnv("AZTEC_BRIDGE_ADDRESS");
+    const wormholeAddress = requireEnv("AZTEC_WORMHOLE_ADDRESS");
+    const privateKey = requireEnv("AZTEC_RELAYER_PRIVATE_KEY");
+    const salt = requireEnv("AZTEC_RELAYER_SALT");
 
     const node = createAztecNodeClient(nodeUrl);
     const wallet = await TestWallet.create(node, getTestnetPxeConfig());
@@ -136,8 +122,8 @@ export async function createAztecClient(): Promise<AztecMessageBridgeClient> {
 
 export async function createAllClients(): Promise<Record<NetworkName, BaseMessageBridgeEmitter>> {
     const [arbitrum, base, aztec, solana] = await Promise.all([
-        createArbitrumClient(),
-        createBaseClient(),
+        createEvmClient("arbitrum"),
+        createEvmClient("base"),
         createAztecClient(),
         createSolanaClient(),
     ]);

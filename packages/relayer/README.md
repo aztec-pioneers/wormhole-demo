@@ -12,7 +12,7 @@ This relayer monitors the Wormhole network for Verified Action Approvals (VAAs) 
 
 - Go 1.20 or higher
 - Access to a Wormhole Spy service (default: `localhost:7073`). See [here](https://wormhole.com/docs/protocol/infrastructure-guides/run-spy/#__tabbed_1_2) for details on running the service.
-- For Aztec relaying: Access to an Aztec PXE node
+- For Aztec relaying: Access to the VAA verification service
 - For EVM relaying: Private key with sufficient funds for gas fees
 
 ## Build Instructions
@@ -63,7 +63,7 @@ These flags are available for all commands:
 
 ### Aztec Command (EVM → Aztec)
 
-Relays Wormhole VAAs from EVM chains to Aztec.
+Relays Wormhole VAAs from EVM chains to Aztec via the VAA verification service.
 
 ```bash
 ./relayer aztec [flags]
@@ -73,11 +73,10 @@ Relays Wormhole VAAs from EVM chains to Aztec.
 
 | Flag | Default | Description | Required |
 |------|---------|-------------|----------|
-| `--aztec-pxe-url` | `http://localhost:8090` | PXE URL for Aztec | No |
-| `--aztec-wallet-address` | `0x1f3933ca...` | Aztec wallet address to use | No |
 | `--aztec-target-contract` | `0x0848d2af...` | Target contract on Aztec to send VAAs to | No |
-| `--chain-id` | `10003` | Aztec chain ID | No |
-| `--verification-service-url` | `http://localhost:8080` | Verification service URL (optional) | No |
+| `--verification-service-url` | `http://localhost:8080` | VAA verification service URL | No |
+| `--chain-ids` | `10003,1,10004` | Source chain IDs to listen for | No |
+| `--emitter-address` | - | Source emitter address to filter | No |
 
 #### Example Usage
 
@@ -87,8 +86,7 @@ Relays Wormhole VAAs from EVM chains to Aztec.
 
 # With custom configuration
 ./relayer aztec \
-  --aztec-pxe-url http://your-pxe:8090 \
-  --aztec-wallet-address 0xYourWalletAddress \
+  --verification-service-url http://your-service:8080 \
   --aztec-target-contract 0xYourTargetContract \
   --debug
 
@@ -96,7 +94,7 @@ Relays Wormhole VAAs from EVM chains to Aztec.
 ./relayer aztec --json
 
 # Using environment variables
-export WORMHOLE_RELAYER_AZTEC_PXE_URL=http://your-pxe:8090
+export WORMHOLE_RELAYER_VERIFICATION_SERVICE_URL=http://your-service:8080
 export WORMHOLE_RELAYER_SPY_RPC_HOST=your-spy:7073
 ./relayer aztec
 ```
@@ -154,7 +152,7 @@ All command-line flags can be set via environment variables using the pattern:
 
 Replace hyphens with underscores and convert to uppercase:
 - `--spy-rpc-host` → `WORMHOLE_RELAYER_SPY_RPC_HOST`
-- `--aztec-pxe-url` → `WORMHOLE_RELAYER_AZTEC_PXE_URL`
+- `--verification-service-url` → `WORMHOLE_RELAYER_VERIFICATION_SERVICE_URL`
 - `--private-key` → `WORMHOLE_RELAYER_PRIVATE_KEY`
 
 ### Using .env File
@@ -165,7 +163,7 @@ The relayer supports loading configuration from a `.env` file in the current dir
 # .env
 WORMHOLE_RELAYER_PRIVATE_KEY=0xYourPrivateKey
 WORMHOLE_RELAYER_SPY_RPC_HOST=your-spy-host:7073
-WORMHOLE_RELAYER_AZTEC_PXE_URL=http://your-pxe:8090
+WORMHOLE_RELAYER_VERIFICATION_SERVICE_URL=http://your-service:8080
 WORMHOLE_RELAYER_EVM_RPC_URL=https://your-rpc-endpoint
 ```
 
@@ -177,11 +175,11 @@ The EVM relayer ships with a minimal submitter that targets the example contract
 - Only a single `bytes` argument (the VAA payload) is required.
 - No ETH value needs to be sent and a static gas limit of `3,000,000` is sufficient.
 
-This is intended as scaffolding. Expect to copy and adapt the submitter for your own contract, wiring in your contract’s ABI and method signature.
+This is intended as scaffolding. Expect to copy and adapt the submitter for your own contract, wiring in your contract's ABI and method signature.
 
 #### Builder Checklist
 
-- [ ] Duplicate `internal/clients/evm.go` / `internal/submitter/evm.go` (or fork the relayer) 
+- [ ] Duplicate `internal/clients/evm.go` / `internal/submitter/evm.go` (or fork the relayer)
 - [ ] Adjust argument packing to match your contract inputs (e.g., multiple parameters, structs, non-`bytes` types).
 - [ ] Update gas limit/value strategy if needed.
 
@@ -194,7 +192,7 @@ The relayer consists of several key components:
 1. **Spy Client**: Connects to the Wormhole Spy service to receive signed VAAs
 2. **VAA Processor**: Processes incoming VAAs and determines handling based on chain ID
 3. **Submitters**:
-   - `AztecSubmitter`: Submits VAAs to Aztec via PXE
+   - `AztecSubmitter`: Submits VAAs to Aztec via the verification service
    - `EVMSubmitter`: Submits VAAs to EVM chains via RPC
 4. **Relayer**: Orchestrates the flow between components
 
@@ -207,7 +205,7 @@ EVM → Aztec:
 3. Spy service broadcasts the VAA
 4. Relayer receives VAA via Spy client
 5. VAA Processor validates chain ID
-6. AztecSubmitter sends to Aztec PXE
+6. AztecSubmitter sends to verification service
 7. Transaction confirmed on Aztec
 
 Aztec → EVM:
@@ -233,7 +231,7 @@ Aztec → EVM:
 
 The relayer logs its status at various stages:
 - Connection status to Spy service
-- Connection status to blockchain nodes
+- Connection status to verification service
 - VAA processing events
 - Transaction submission results
 
@@ -262,10 +260,9 @@ The relayer logs its status at various stages:
    - Check that the private key is valid (64 hex characters)
    - Ensure the account has sufficient funds for gas
 
-3. **"Failed to create PXE client"**
-   - Verify the Aztec PXE node is running
-   - Check the `--aztec-pxe-url` configuration
-   - Ensure the wallet address is valid
+3. **"Verification service not available"**
+   - Ensure the VAA verification service is running
+   - Check the `--verification-service-url` configuration
 
 4. **Transaction failures**
    - Check target contract addresses
@@ -282,7 +279,7 @@ Enable debug mode for detailed troubleshooting:
 
 ## Security Considerations
 
-⚠️ **IMPORTANT SECURITY NOTES:**
+**IMPORTANT SECURITY NOTES:**
 
 1. **Never commit private keys to version control**
 2. **Use environment variables or secure key management for production**
@@ -317,7 +314,7 @@ ExecStart=/usr/local/bin/relayer aztec --json
 Restart=always
 RestartSec=10
 Environment="WORMHOLE_RELAYER_SPY_RPC_HOST=localhost:7073"
-Environment="WORMHOLE_RELAYER_AZTEC_PXE_URL=http://localhost:8090"
+Environment="WORMHOLE_RELAYER_VERIFICATION_SERVICE_URL=http://localhost:8080"
 
 [Install]
 WantedBy=multi-user.target

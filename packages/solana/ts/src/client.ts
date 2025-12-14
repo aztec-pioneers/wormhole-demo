@@ -9,7 +9,7 @@ import {
     TransactionInstruction,
     sendAndConfirmTransaction,
 } from "@solana/web3.js";
-import { wormhole, signSendWait, deserialize, type Wormhole } from "@wormhole-foundation/sdk";
+import { wormhole, signSendWait, deserialize } from "@wormhole-foundation/sdk";
 import solana from "@wormhole-foundation/sdk/solana";
 import { getSolanaSignAndSendSigner } from "@wormhole-foundation/sdk-solana";
 import {
@@ -28,7 +28,6 @@ import {
 } from "./constants";
 import type {
     Config,
-    CurrentValue,
     ForeignEmitter,
     ProgramPDAs,
     WormholePDAs,

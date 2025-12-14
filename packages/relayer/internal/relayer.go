@@ -86,13 +86,6 @@ func (r *Relayer) Close() {
 
 // Start begins listening for VAAs and processing them
 func (r *Relayer) Start(ctx context.Context) error {
-	// r.logger.Info("Starting bidirectional Aztec-Arbitrum relayer",
-	// 	zap.String("aztecWallet", r.aztecClient.GetWalletAddress()),
-	// 	zap.String("arbitrumAddress", r.evmClient.GetAddress().Hex()),
-	// 	zap.Uint16("aztecChain", r.config.SourceChainID),
-	// 	zap.Uint16("arbitrumChain", r.config.DestChainID),
-	// 	zap.String("verificationServiceURL", r.config.VerificationServiceURL)) // ADD
-
 	// Create a wait group to track goroutines
 	var wg sync.WaitGroup
 
