@@ -86,7 +86,7 @@ export class EvmMessageBridgeClient implements BaseMessageBridgeEmitter {
     }
 
     // ============================================================
-    // IDENTITY (BaseMessageBridgeClient)
+    // IDENTITY (BaseMessageBridgeEmitter)
     // ============================================================
 
     get wormholeChainId(): number {
@@ -102,7 +102,7 @@ export class EvmMessageBridgeClient implements BaseMessageBridgeEmitter {
     }
 
     // ============================================================
-    // READ OPERATIONS (BaseMessageBridgeClient)
+    // READ OPERATIONS (BaseMessageBridgeEmitter)
     // ============================================================
 
     async isInitialized(): Promise<boolean> {
@@ -142,7 +142,7 @@ export class EvmMessageBridgeClient implements BaseMessageBridgeEmitter {
     }
 
     // ============================================================
-    // WRITE OPERATIONS (BaseMessageBridgeClient)
+    // WRITE OPERATIONS (BaseMessageBridgeEmitter)
     // ============================================================
 
     async registerEmitters(emitters: EmitterConfig[]): Promise<void> {

@@ -1,10 +1,6 @@
 export { SolanaMessageBridgeClient, type SolanaMessageBridgeClientOptions } from "./client.js";
 
 export {
-    WORMHOLE_CHAIN_ID_SOLANA,
-    WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA,
-    WORMHOLE_CHAIN_ID_BASE_SEPOLIA,
-    WORMHOLE_CHAIN_ID_AZTEC,
     SEED_CONFIG,
     SEED_CURRENT_VALUE,
     SEED_EMITTER,

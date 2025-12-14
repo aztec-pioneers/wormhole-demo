@@ -22,7 +22,6 @@ import {
     SEED_WORMHOLE_POSTED_VAA,
     WORMHOLE_PROGRAM_ID,
     DISCRIMINATORS,
-    WORMHOLE_CHAIN_ID_SOLANA,
 } from "./constants";
 import type {
     Config,
@@ -35,6 +34,7 @@ import {
     type BaseMessageBridgeReceiver,
     type EmitterConfig,
     parseVaa,
+    WORMHOLE_CHAIN_IDS,
 } from "@aztec-wormhole-demo/shared";
 
 // ============================================================
@@ -52,7 +52,7 @@ export interface SolanaMessageBridgeClientOptions {
 // MESSAGE BRIDGE CLIENT
 // ============================================================
 export class SolanaMessageBridgeClient implements BaseMessageBridgeReceiver {
-    readonly wormholeChainId = WORMHOLE_CHAIN_ID_SOLANA;
+    readonly wormholeChainId = WORMHOLE_CHAIN_IDS.solana;
     readonly chainName = "Solana";
 
     readonly connection: Connection;
@@ -234,7 +234,7 @@ export class SolanaMessageBridgeClient implements BaseMessageBridgeReceiver {
             if (emitterAddress.length !== 32) {
                 throw new Error(`Emitter address for chain ${emitter.chainId} must be 32 bytes`);
             }
-            if (emitter.chainId === WORMHOLE_CHAIN_ID_SOLANA) {
+            if (emitter.chainId === WORMHOLE_CHAIN_IDS.solana) {
                 throw new Error("Cannot register Solana as a foreign emitter");
             }
 
