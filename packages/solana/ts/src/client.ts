@@ -19,6 +19,7 @@ import {
     SEED_WORMHOLE_BRIDGE,
     SEED_WORMHOLE_FEE_COLLECTOR,
     SEED_WORMHOLE_SEQUENCE,
+    SEED_WORMHOLE_POSTED_VAA,
     WORMHOLE_PROGRAM_ID,
     DISCRIMINATORS,
     WORMHOLE_CHAIN_ID_SOLANA,
@@ -27,32 +28,69 @@ import type {
     Config,
     CurrentValue,
     ForeignEmitter,
-    MessageBridgeClientOptions,
     ProgramPDAs,
-    ReceiveValueResult,
-    SendValueResult,
     WormholePDAs,
 } from "./types.js";
+import {
+    type BaseMessageBridgeClient,
+    type EmitterConfig,
+    type SendResult,
+    type ReceiveResult,
+    parseVaa,
+} from "@aztec-wormhole-demo/shared";
 
-/**
- * Client for interacting with the Solana MessageBridge program
- */
-export class MessageBridgeClient {
+// ============================================================
+// CLIENT OPTIONS
+// ============================================================
+
+export interface SolanaMessageBridgeClientOptions {
+    connection: Connection;
+    programId: PublicKey;
+    payer: Keypair;
+    wormholeProgramId?: PublicKey;
+}
+
+// ============================================================
+// MESSAGE BRIDGE CLIENT
+// ============================================================
+
+export class SolanaMessageBridgeClient implements BaseMessageBridgeClient {
+    readonly wormholeChainId = WORMHOLE_CHAIN_ID_SOLANA;
+    readonly chainName = "Solana";
+
     readonly connection: Connection;
     readonly programId: PublicKey;
     readonly wormholeProgramId: PublicKey;
+    private readonly payer: Keypair;
     private pdas: ProgramPDAs | null = null;
     private wormholePdas: WormholePDAs | null = null;
 
-    constructor(connection: Connection, options: MessageBridgeClientOptions) {
+    private constructor(
+        connection: Connection,
+        programId: PublicKey,
+        wormholeProgramId: PublicKey,
+        payer: Keypair
+    ) {
         this.connection = connection;
-        this.programId = options.programId;
-        this.wormholeProgramId = options.wormholeProgramId ?? WORMHOLE_PROGRAM_ID;
+        this.programId = programId;
+        this.wormholeProgramId = wormholeProgramId;
+        this.payer = payer;
     }
 
-    /**
-     * Get program PDAs (cached)
-     */
+    static async create(options: SolanaMessageBridgeClientOptions): Promise<SolanaMessageBridgeClient> {
+        const wormholeProgramId = options.wormholeProgramId ?? WORMHOLE_PROGRAM_ID;
+        return new SolanaMessageBridgeClient(
+            options.connection,
+            options.programId,
+            wormholeProgramId,
+            options.payer
+        );
+    }
+
+    // ============================================================
+    // PDA DERIVATION
+    // ============================================================
+
     getPDAs(): ProgramPDAs {
         if (this.pdas) return this.pdas;
 
@@ -83,9 +121,6 @@ export class MessageBridgeClient {
         return this.pdas;
     }
 
-    /**
-     * Get Wormhole PDAs (cached)
-     */
     getWormholePDAs(): WormholePDAs {
         if (this.wormholePdas) return this.wormholePdas;
 
@@ -118,9 +153,6 @@ export class MessageBridgeClient {
         return this.wormholePdas;
     }
 
-    /**
-     * Derive foreign emitter PDA for a given chain
-     */
     getForeignEmitterPDA(chainId: number): [PublicKey, number] {
         const chainIdBuffer = Buffer.alloc(2);
         chainIdBuffer.writeUInt16LE(chainId);
@@ -130,9 +162,6 @@ export class MessageBridgeClient {
         );
     }
 
-    /**
-     * Derive received message PDA
-     */
     getReceivedMessagePDA(emitterChain: number, sequence: bigint): [PublicKey, number] {
         const chainIdBuffer = Buffer.alloc(2);
         chainIdBuffer.writeUInt16LE(emitterChain);
@@ -144,9 +173,6 @@ export class MessageBridgeClient {
         );
     }
 
-    /**
-     * Derive message account PDA for sending
-     */
     getMessagePDA(nonce: number): [PublicKey, number] {
         const nonceBuffer = Buffer.alloc(4);
         nonceBuffer.writeUInt32LE(nonce);
@@ -157,107 +183,58 @@ export class MessageBridgeClient {
     }
 
     // ============================================================
-    // INITIALIZE
+    // IDENTITY (BaseMessageBridgeClient)
     // ============================================================
 
-    /**
-     * Initialize the message bridge program
-     */
-    async initialize(payer: Keypair): Promise<string> {
+    getEmitterAddress(): string {
         const pdas = this.getPDAs();
-        const wormholePdas = this.getWormholePDAs();
-
-        const ix = new TransactionInstruction({
-            keys: [
-                { pubkey: payer.publicKey, isSigner: true, isWritable: true },
-                { pubkey: pdas.config, isSigner: false, isWritable: true },
-                { pubkey: pdas.currentValue, isSigner: false, isWritable: true },
-                { pubkey: pdas.wormholeEmitter, isSigner: false, isWritable: true },
-                { pubkey: this.wormholeProgramId, isSigner: false, isWritable: false },
-                { pubkey: wormholePdas.bridge, isSigner: false, isWritable: true },
-                { pubkey: wormholePdas.feeCollector, isSigner: false, isWritable: true },
-                { pubkey: wormholePdas.sequence, isSigner: false, isWritable: true },
-                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-                { pubkey: SYSVAR_CLOCK_PUBKEY, isSigner: false, isWritable: false },
-                { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
-            ],
-            programId: this.programId,
-            data: DISCRIMINATORS.initialize,
-        });
-
-        const tx = new Transaction().add(ix);
-        return sendAndConfirmTransaction(this.connection, tx, [payer]);
+        return "0x" + Buffer.from(pdas.wormholeEmitter.toBytes()).toString("hex");
     }
 
     // ============================================================
-    // REGISTER EMITTER
+    // READ OPERATIONS (BaseMessageBridgeClient)
     // ============================================================
 
-    /**
-     * Register a foreign emitter from another chain
-     *
-     * @param owner - The owner keypair (must be program owner)
-     * @param chainId - Wormhole chain ID of the foreign chain
-     * @param emitterAddress - Emitter address (32 bytes)
-     * @param isDefaultPayload - true for default 18-byte payload (Solana/EVM), false for Aztec 50-byte payload
-     */
-    async registerEmitter(
-        owner: Keypair,
-        chainId: number,
-        emitterAddress: Uint8Array,
-        isDefaultPayload: boolean
-    ): Promise<string> {
-        if (emitterAddress.length !== 32) {
-            throw new Error("Emitter address must be 32 bytes");
-        }
-        if (chainId === WORMHOLE_CHAIN_ID_SOLANA) {
-            throw new Error("Cannot register Solana as a foreign emitter");
-        }
-
-        const pdas = this.getPDAs();
-        const [foreignEmitter] = this.getForeignEmitterPDA(chainId);
-
-        // Build instruction data: discriminator + chain_id (u16) + address (32 bytes) + is_default_payload (bool)
-        const data = Buffer.alloc(8 + 2 + 32 + 1);
-        DISCRIMINATORS.registerEmitter.copy(data, 0);
-        data.writeUInt16LE(chainId, 8);
-        Buffer.from(emitterAddress).copy(data, 10);
-        data.writeUInt8(isDefaultPayload ? 1 : 0, 42);
-
-        const ix = new TransactionInstruction({
-            keys: [
-                { pubkey: owner.publicKey, isSigner: true, isWritable: true },
-                { pubkey: pdas.config, isSigner: false, isWritable: false },
-                { pubkey: foreignEmitter, isSigner: false, isWritable: true },
-                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-            ],
-            programId: this.programId,
-            data,
-        });
-
-        const tx = new Transaction().add(ix);
-        return sendAndConfirmTransaction(this.connection, tx, [owner]);
+    async isInitialized(): Promise<boolean> {
+        const config = await this.getConfig();
+        return config !== null;
     }
 
-    /**
-     * Register multiple foreign emitters in a single transaction
-     *
-     * @param owner - The owner keypair (must be program owner)
-     * @param emitters - Array of emitter configurations
-     */
-    async registerEmitters(
-        owner: Keypair,
-        emitters: Array<{ chainId: number; emitterAddress: Uint8Array; isDefaultPayload: boolean }>
-    ): Promise<string> {
-        if (emitters.length === 0) {
-            throw new Error("Must provide at least one emitter to register");
-        }
+    async getCurrentValue(): Promise<bigint | null> {
+        const pdas = this.getPDAs();
+        const accountInfo = await this.connection.getAccountInfo(pdas.currentValue);
+        if (!accountInfo) return null;
+
+        const data = accountInfo.data;
+        const low = data.readBigUInt64LE(8);
+        const high = data.readBigUInt64LE(16);
+        return low + (high << BigInt(64));
+    }
+
+    async isEmitterRegistered(chainId: number, emitter: string): Promise<boolean> {
+        const foreignEmitter = await this.getForeignEmitter(chainId);
+        if (!foreignEmitter) return false;
+
+        const expectedBytes = Buffer.from(emitter.replace("0x", ""), "hex");
+        return Buffer.from(foreignEmitter.address).equals(expectedBytes);
+    }
+
+    // ============================================================
+    // WRITE OPERATIONS (BaseMessageBridgeClient)
+    // ============================================================
+
+    async registerEmitters(emitters: EmitterConfig[]): Promise<void> {
+        if (emitters.length === 0) return;
 
         const pdas = this.getPDAs();
         const tx = new Transaction();
 
         for (const emitter of emitters) {
-            if (emitter.emitterAddress.length !== 32) {
+            const emitterAddress = new Uint8Array(
+                Buffer.from(emitter.emitter.replace("0x", ""), "hex")
+            );
+
+            if (emitterAddress.length !== 32) {
                 throw new Error(`Emitter address for chain ${emitter.chainId} must be 32 bytes`);
             }
             if (emitter.chainId === WORMHOLE_CHAIN_ID_SOLANA) {
@@ -266,16 +243,15 @@ export class MessageBridgeClient {
 
             const [foreignEmitter] = this.getForeignEmitterPDA(emitter.chainId);
 
-            // Build instruction data: discriminator + chain_id (u16) + address (32 bytes) + is_default_payload (bool)
             const data = Buffer.alloc(8 + 2 + 32 + 1);
             DISCRIMINATORS.registerEmitter.copy(data, 0);
             data.writeUInt16LE(emitter.chainId, 8);
-            Buffer.from(emitter.emitterAddress).copy(data, 10);
+            Buffer.from(emitterAddress).copy(data, 10);
             data.writeUInt8(emitter.isDefaultPayload ? 1 : 0, 42);
 
             const ix = new TransactionInstruction({
                 keys: [
-                    { pubkey: owner.publicKey, isSigner: true, isWritable: true },
+                    { pubkey: this.payer.publicKey, isSigner: true, isWritable: true },
                     { pubkey: pdas.config, isSigner: false, isWritable: false },
                     { pubkey: foreignEmitter, isSigner: false, isWritable: true },
                     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
@@ -287,22 +263,10 @@ export class MessageBridgeClient {
             tx.add(ix);
         }
 
-        return sendAndConfirmTransaction(this.connection, tx, [owner]);
+        await sendAndConfirmTransaction(this.connection, tx, [this.payer]);
     }
 
-    // ============================================================
-    // SEND VALUE
-    // ============================================================
-
-    /**
-     * Send a value to another chain via Wormhole
-     */
-    async sendValue(
-        payer: Keypair,
-        destinationChainId: number,
-        value: bigint
-    ): Promise<SendValueResult> {
-        // First get current nonce from config
+    async sendValue(destinationChainId: number, value: bigint): Promise<SendResult> {
         const config = await this.getConfig();
         if (!config) {
             throw new Error("Message bridge not initialized");
@@ -312,17 +276,15 @@ export class MessageBridgeClient {
         const wormholePdas = this.getWormholePDAs();
         const [messageKey] = this.getMessagePDA(config.nonce);
 
-        // Build instruction data: discriminator + destination_chain_id (u16) + value (u128)
         const data = Buffer.alloc(8 + 2 + 16);
         DISCRIMINATORS.sendValue.copy(data, 0);
         data.writeUInt16LE(destinationChainId, 8);
-        // Write u128 as two u64s (little endian)
         data.writeBigUInt64LE(value & BigInt("0xFFFFFFFFFFFFFFFF"), 10);
         data.writeBigUInt64LE(value >> BigInt(64), 18);
 
         const ix = new TransactionInstruction({
             keys: [
-                { pubkey: payer.publicKey, isSigner: true, isWritable: true },
+                { pubkey: this.payer.publicKey, isSigner: true, isWritable: true },
                 { pubkey: pdas.config, isSigner: false, isWritable: true },
                 { pubkey: pdas.wormholeEmitter, isSigner: false, isWritable: false },
                 { pubkey: this.wormholeProgramId, isSigner: false, isWritable: false },
@@ -339,47 +301,32 @@ export class MessageBridgeClient {
         });
 
         const tx = new Transaction().add(ix);
-        const signature = await sendAndConfirmTransaction(this.connection, tx, [payer]);
+        const signature = await sendAndConfirmTransaction(this.connection, tx, [this.payer]);
 
-        return {
-            signature,
-            nonce: config.nonce,
-            messageKey,
-        };
+        return { txHash: signature };
     }
 
-    // ============================================================
-    // RECEIVE VALUE
-    // ============================================================
+    async receiveValue(vaa: Uint8Array): Promise<ReceiveResult> {
+        const { emitterChain, sequence, value, bodyHash } = parseVaa(vaa);
 
-    /**
-     * Receive a value from another chain via Wormhole
-     */
-    async receiveValue(
-        payer: Keypair,
-        postedVaa: PublicKey,
-        vaaHash: Uint8Array,
-        emitterChain: number,
-        sequence: bigint
-    ): Promise<ReceiveValueResult> {
-        if (vaaHash.length !== 32) {
-            throw new Error("VAA hash must be 32 bytes");
-        }
+        const [postedVaa] = PublicKey.findProgramAddressSync(
+            [SEED_WORMHOLE_POSTED_VAA, bodyHash],
+            this.wormholeProgramId
+        );
 
         const pdas = this.getPDAs();
         const [foreignEmitter] = this.getForeignEmitterPDA(emitterChain);
         const [receivedMessage] = this.getReceivedMessagePDA(emitterChain, sequence);
 
-        // Build instruction data: discriminator + vaa_hash (32 bytes) + emitter_chain (u16) + sequence (u64)
         const data = Buffer.alloc(8 + 32 + 2 + 8);
         DISCRIMINATORS.receiveValue.copy(data, 0);
-        Buffer.from(vaaHash).copy(data, 8);
+        Buffer.from(bodyHash).copy(data, 8);
         data.writeUInt16LE(emitterChain, 40);
         data.writeBigUInt64LE(sequence, 42);
 
         const ix = new TransactionInstruction({
             keys: [
-                { pubkey: payer.publicKey, isSigner: true, isWritable: true },
+                { pubkey: this.payer.publicKey, isSigner: true, isWritable: true },
                 { pubkey: pdas.config, isSigner: false, isWritable: false },
                 { pubkey: pdas.currentValue, isSigner: false, isWritable: true },
                 { pubkey: this.wormholeProgramId, isSigner: false, isWritable: false },
@@ -393,32 +340,50 @@ export class MessageBridgeClient {
         });
 
         const tx = new Transaction().add(ix);
-        const signature = await sendAndConfirmTransaction(this.connection, tx, [payer]);
-
-        // Read the value from current value account
-        const currentValue = await this.getCurrentValue();
+        const signature = await sendAndConfirmTransaction(this.connection, tx, [this.payer]);
 
         return {
-            signature,
-            value: currentValue?.value ?? BigInt(0),
+            txHash: signature,
+            value,
             sourceChain: emitterChain,
-            sequence,
         };
     }
 
     // ============================================================
-    // READ OPERATIONS
+    // SOLANA-SPECIFIC OPERATIONS
     // ============================================================
 
-    /**
-     * Get the program config
-     */
+    async initialize(): Promise<string> {
+        const pdas = this.getPDAs();
+        const wormholePdas = this.getWormholePDAs();
+
+        const ix = new TransactionInstruction({
+            keys: [
+                { pubkey: this.payer.publicKey, isSigner: true, isWritable: true },
+                { pubkey: pdas.config, isSigner: false, isWritable: true },
+                { pubkey: pdas.currentValue, isSigner: false, isWritable: true },
+                { pubkey: pdas.wormholeEmitter, isSigner: false, isWritable: true },
+                { pubkey: this.wormholeProgramId, isSigner: false, isWritable: false },
+                { pubkey: wormholePdas.bridge, isSigner: false, isWritable: true },
+                { pubkey: wormholePdas.feeCollector, isSigner: false, isWritable: true },
+                { pubkey: wormholePdas.sequence, isSigner: false, isWritable: true },
+                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+                { pubkey: SYSVAR_CLOCK_PUBKEY, isSigner: false, isWritable: false },
+                { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+            ],
+            programId: this.programId,
+            data: DISCRIMINATORS.initialize,
+        });
+
+        const tx = new Transaction().add(ix);
+        return sendAndConfirmTransaction(this.connection, tx, [this.payer]);
+    }
+
     async getConfig(): Promise<Config | null> {
         const pdas = this.getPDAs();
         const accountInfo = await this.connection.getAccountInfo(pdas.config);
         if (!accountInfo) return null;
 
-        // Parse config data (skip 8-byte discriminator)
         const data = accountInfo.data;
         return {
             owner: new PublicKey(data.subarray(8, 40)),
@@ -432,33 +397,11 @@ export class MessageBridgeClient {
         };
     }
 
-    /**
-     * Get the current value
-     */
-    async getCurrentValue(): Promise<CurrentValue | null> {
-        const pdas = this.getPDAs();
-        const accountInfo = await this.connection.getAccountInfo(pdas.currentValue);
-        if (!accountInfo) return null;
-
-        // Parse current value (skip 8-byte discriminator, read u128)
-        const data = accountInfo.data;
-        const low = data.readBigUInt64LE(8);
-        const high = data.readBigUInt64LE(16);
-        return {
-            value: low + (high << BigInt(64)),
-        };
-    }
-
-    /**
-     * Get a registered foreign emitter
-     */
     async getForeignEmitter(chainId: number): Promise<ForeignEmitter | null> {
         const [foreignEmitter] = this.getForeignEmitterPDA(chainId);
         const accountInfo = await this.connection.getAccountInfo(foreignEmitter);
         if (!accountInfo) return null;
 
-        // Parse foreign emitter (skip 8-byte discriminator)
-        // Layout: chain_id (2) + address (32) + is_default_payload (1)
         const data = accountInfo.data;
         return {
             chainId: data.readUInt16LE(8),
@@ -467,68 +410,9 @@ export class MessageBridgeClient {
         };
     }
 
-    /**
-     * Check if a message has been received (replay protection)
-     */
     async isMessageReceived(emitterChain: number, sequence: bigint): Promise<boolean> {
         const [receivedMessage] = this.getReceivedMessagePDA(emitterChain, sequence);
         const accountInfo = await this.connection.getAccountInfo(receivedMessage);
         return accountInfo !== null;
-    }
-
-    // ============================================================
-    // UTILITY METHODS
-    // ============================================================
-
-    /**
-     * Check if the program is initialized
-     */
-    async isInitialized(): Promise<boolean> {
-        const config = await this.getConfig();
-        return config !== null;
-    }
-
-    /**
-     * Get the emitter address (for registration on other chains)
-     */
-    getEmitterAddress(): Uint8Array {
-        const pdas = this.getPDAs();
-        return pdas.wormholeEmitter.toBytes();
-    }
-
-    /**
-     * Convert an EVM address (20 bytes) to Wormhole format (32 bytes, left-padded)
-     */
-    static evmAddressToWormhole(evmAddress: string): Uint8Array {
-        // Remove 0x prefix if present
-        const cleanAddress = evmAddress.startsWith("0x")
-            ? evmAddress.slice(2)
-            : evmAddress;
-
-        if (cleanAddress.length !== 40) {
-            throw new Error("Invalid EVM address length");
-        }
-
-        // Left-pad to 32 bytes
-        const result = new Uint8Array(32);
-        const addressBytes = Buffer.from(cleanAddress, "hex");
-        result.set(addressBytes, 12); // Start at byte 12 (32 - 20 = 12)
-        return result;
-    }
-
-    /**
-     * Convert an Aztec address (32 bytes) to Wormhole format
-     */
-    static aztecAddressToWormhole(aztecAddress: string): Uint8Array {
-        // Remove 0x prefix if present
-        const cleanAddress = aztecAddress.startsWith("0x")
-            ? aztecAddress.slice(2)
-            : aztecAddress;
-
-        if (cleanAddress.length !== 64) {
-            throw new Error("Invalid Aztec address length");
-        }
-
-        return new Uint8Array(Buffer.from(cleanAddress, "hex"));
     }
 }

@@ -7,26 +7,11 @@
   "main": "./ts/index.ts",
   "types": "./ts/index.ts",
   "exports": {
-    ".": {
-      "import": "./ts/index.ts",
-      "types": "./ts/index.ts"
-    },
-    "./artifacts": {
-      "import": "./ts/artifacts/index.ts",
-      "types": "./ts/artifacts/index.ts"
-    },
-    "./fees": {
-      "import": "./ts/fees.ts",
-      "types": "./ts/fees.ts"
-    },
-    "./constants": {
-      "import": "./ts/constants.ts",
-      "types": "./ts/constants.ts"
-    },
-    "./utils": {
-      "import": "./ts/utils.ts",
-      "types": "./ts/utils.ts"
-    }
+    ".": "./ts/index.ts",
+    "./artifacts": "./ts/artifacts/index.ts",
+    "./client": "./ts/client.ts",
+    "./fees": "./ts/fees.ts",
+    "./utils": "./ts/utils.ts"
   },
   "dependencies": {
     "@aztec-wormhole-demo/shared": "workspace:*",

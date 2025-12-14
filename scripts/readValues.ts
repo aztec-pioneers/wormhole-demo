@@ -36,6 +36,7 @@ async function readEvmBridge(chainName: EvmChainName, rpcUrl: string | undefined
         const { publicClient } = createEvmClients(rpcUrl, EVM_PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001", chainName);
         const address = getAddress(bridgeAddress);
 
+        //@ts-ignore
         const currentValue = await publicClient.readContract({
             address,
             abi: MESSAGE_BRIDGE_ABI,

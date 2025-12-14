@@ -2,5 +2,6 @@ packages:
   - 'packages/shared'
   - 'packages/aztec'
   - 'packages/aztec-vaa-service'
+  - 'packages/evm/ts'
   - 'packages/solana/ts'
   - 'packages/solana-vaa-service'

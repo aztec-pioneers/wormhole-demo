@@ -15,5 +15,8 @@
       "import": "./src/constants.ts",
       "types": "./src/constants.ts"
     }
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.6.0"
   }
 }

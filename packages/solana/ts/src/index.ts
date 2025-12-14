@@ -1,7 +1,5 @@
-// Main client export
-export { MessageBridgeClient } from "./client.js";
+export { SolanaMessageBridgeClient, type SolanaMessageBridgeClientOptions } from "./client.js";
 
-// Constants
 export {
     WORMHOLE_CHAIN_ID_SOLANA,
     WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA,
@@ -21,16 +19,10 @@ export {
     DISCRIMINATORS,
 } from "./constants.js";
 
-// Types
 export type {
     Config,
     CurrentValue,
     ForeignEmitter,
-    MessageBridgeClientOptions,
     ProgramPDAs,
-    ReceiveValueResult,
-    ReceivedMessage,
-    SendValueResult,
-    WormholeEmitter,
     WormholePDAs,
 } from "./types.js";

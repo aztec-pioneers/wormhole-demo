@@ -71,30 +71,3 @@ export interface WormholePDAs {
     sequence: PublicKey;
     sequenceBump: number;
 }
-
-/**
- * Options for initializing the client
- */
-export interface MessageBridgeClientOptions {
-    programId: PublicKey;
-    wormholeProgramId?: PublicKey;
-}
-
-/**
- * Result of sending a value
- */
-export interface SendValueResult {
-    signature: string;
-    nonce: number;
-    messageKey: PublicKey;
-}
-
-/**
- * Result of receiving a value
- */
-export interface ReceiveValueResult {
-    signature: string;
-    value: bigint;
-    sourceChain: number;
-    sequence: bigint;
-}

@@ -1,0 +1,199 @@
+import { AztecAddress } from "@aztec/aztec.js/addresses";
+import type { AztecNode } from "@aztec/aztec.js/node";
+import type { Wallet } from "@aztec/aztec.js/wallet";
+import { Fr } from "@aztec/aztec.js/fields";
+import type { SendInteractionOptions, WaitOpts } from "@aztec/aztec.js/contracts";
+import {
+    type BaseMessageBridgeClient,
+    type EmitterConfig,
+    type SendResult,
+    type ReceiveResult,
+    WORMHOLE_CHAIN_ID_AZTEC,
+    parseVaa,
+    hexToBytes32Array,
+    addressToBytes32,
+} from "@aztec-wormhole-demo/shared";
+import { MessageBridgeContract, MessageBridgeContractArtifact } from "./artifacts/index.js";
+
+export interface AztecMessageBridgeClientOptions {
+    /** Aztec node client */
+    node: AztecNode;
+    /** Wallet instance */
+    wallet: Wallet;
+    /** Bridge contract address */
+    bridgeAddress: AztecAddress;
+    /** Wormhole contract address (for emitter) */
+    wormholeAddress: AztecAddress;
+    /** Account address to use for transactions */
+    accountAddress: AztecAddress;
+    /** Send options (fee settings, etc.) */
+    sendOptions?: SendInteractionOptions;
+    /** Wait options (timeout, interval) */
+    waitOptions?: WaitOpts;
+}
+
+/**
+ * Client for interacting with the Aztec MessageBridge contract.
+ *
+ * Implements BaseMessageBridgeClient for cross-chain compatibility.
+ */
+export class AztecMessageBridgeClient implements BaseMessageBridgeClient {
+    readonly wormholeChainId = WORMHOLE_CHAIN_ID_AZTEC;
+    readonly chainName = "Aztec";
+
+    private readonly wormholeAddress: AztecAddress;
+    private readonly accountAddress: AztecAddress;
+    private readonly sendOptions: SendInteractionOptions;
+    private readonly waitOptions: WaitOpts;
+    private readonly bridge: MessageBridgeContract;
+
+    private constructor(
+        bridge: MessageBridgeContract,
+        wormholeAddress: AztecAddress,
+        accountAddress: AztecAddress,
+        sendOptions: SendInteractionOptions,
+        waitOptions: WaitOpts,
+    ) {
+        this.bridge = bridge;
+        this.wormholeAddress = wormholeAddress;
+        this.accountAddress = accountAddress;
+        this.sendOptions = sendOptions;
+        this.waitOptions = waitOptions;
+    }
+
+    /**
+     * Create a new AztecMessageBridgeClient
+     */
+    static async create(options: AztecMessageBridgeClientOptions): Promise<AztecMessageBridgeClient> {
+        const instance = await options.node.getContract(options.bridgeAddress);
+        if (!instance) {
+            throw new Error(`Aztec bridge contract not found at ${options.bridgeAddress}`);
+        }
+        await options.wallet.registerContract(instance, MessageBridgeContractArtifact);
+
+        const bridge = await MessageBridgeContract.at(options.bridgeAddress, options.wallet);
+
+        return new AztecMessageBridgeClient(
+            bridge,
+            options.wormholeAddress,
+            options.accountAddress,
+            options.sendOptions ?? { from: options.accountAddress },
+            options.waitOptions ?? { timeout: 3600, interval: 3 },
+        );
+    }
+
+    // --------------------------------------------------------
+    // IDENTITY
+    // --------------------------------------------------------
+
+    getEmitterAddress(): string {
+        // Aztec emitter is the Wormhole contract address
+        return addressToBytes32(this.wormholeAddress.toString());
+    }
+
+    // --------------------------------------------------------
+    // READ OPERATIONS
+    // --------------------------------------------------------
+
+    async isInitialized(): Promise<boolean> {
+        try {
+            await this.bridge.methods.get_config().simulate({ from: this.accountAddress });
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    async getCurrentValue(): Promise<bigint | null> {
+        try {
+            const value = await this.bridge.methods
+                .get_current_value()
+                .simulate({ from: this.accountAddress });
+            return BigInt(value.toString());
+        } catch {
+            return null;
+        }
+    }
+
+    async isEmitterRegistered(chainId: number, emitter: string): Promise<boolean> {
+        const emitterBytes = hexToBytes32Array(emitter);
+        return this.bridge.methods
+            .is_emitter_registered(chainId, emitterBytes as any)
+            .simulate({ from: this.accountAddress });
+    }
+
+    // --------------------------------------------------------
+    // WRITE OPERATIONS
+    // --------------------------------------------------------
+
+    async registerEmitters(emitters: EmitterConfig[]): Promise<void> {
+        if (emitters.length === 0) return;
+
+        const chainIds = emitters.map(e => e.chainId);
+        const emitterAddresses = emitters.map(e => hexToBytes32Array(e.emitter));
+
+        await this.bridge.methods
+            .register_emitter(chainIds as any, emitterAddresses as any)
+            .send(this.sendOptions)
+            .wait(this.waitOptions);
+    }
+
+    async sendValue(destinationChainId: number, value: bigint): Promise<SendResult> {
+        return this.sendValuePublic(destinationChainId, value);
+    }
+
+    // --------------------------------------------------------
+    // AZTEC-SPECIFIC METHODS
+    // --------------------------------------------------------
+
+    /**
+     * Send value publicly (visible on-chain)
+     */
+    async sendValuePublic(destinationChainId: number, value: bigint): Promise<SendResult> {
+        const feeNonce = Fr.random();
+        const receipt = await this.bridge.methods
+            .send_value_public(destinationChainId, value, feeNonce)
+            .send(this.sendOptions)
+            .wait(this.waitOptions);
+
+        return { txHash: receipt.txHash.toString() };
+    }
+
+    /**
+     * Send value privately (encrypted)
+     */
+    async sendValuePrivate(destinationChainId: number, value: bigint): Promise<SendResult> {
+        const feeNonce = Fr.random();
+        const receipt = await this.bridge.methods
+            .send_value_private(destinationChainId, value, feeNonce)
+            .send(this.sendOptions)
+            .wait(this.waitOptions);
+
+        return { txHash: receipt.txHash.toString() };
+    }
+
+    /**
+     * Receive value from a VAA
+     */
+    async receiveValue(vaa: Uint8Array): Promise<ReceiveResult> {
+        const { emitterChain, value } = parseVaa(vaa);
+
+        const receipt = await this.bridge.methods
+            .receive_value(Array.from(vaa) as any, vaa.length)
+            .send(this.sendOptions)
+            .wait(this.waitOptions);
+
+        return {
+            txHash: receipt.txHash.toString(),
+            value,
+            sourceChain: emitterChain,
+        };
+    }
+
+    /**
+     * Get the contract owner
+     */
+    async getOwner(): Promise<AztecAddress> {
+        return this.bridge.methods.get_owner().simulate({ from: this.accountAddress });
+    }
+}
