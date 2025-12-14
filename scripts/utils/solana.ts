@@ -48,32 +48,6 @@ export function loadKeypair(path?: string): Keypair {
 }
 
 /**
- * Create a Solana connection and SolanaMessageBridgeClient
- *
- * Reads SOLANA_WORMHOLE_PROGRAM_ID from env if set, otherwise uses SDK default (devnet)
- */
-export async function createSolanaClient(
-    rpcUrl: string,
-    programId: string,
-    payer: Keypair
-): Promise<{ connection: Connection; client: SolanaMessageBridgeClient }> {
-    const connection = new Connection(rpcUrl, "confirmed");
-
-    // Read Wormhole program ID from env or use SDK default
-    const wormholeProgramId = process.env.SOLANA_WORMHOLE_PROGRAM_ID
-        ? new PublicKey(process.env.SOLANA_WORMHOLE_PROGRAM_ID)
-        : WORMHOLE_PROGRAM_ID;
-
-    const client = await SolanaMessageBridgeClient.create({
-        connection,
-        programId: new PublicKey(programId),
-        payer,
-        wormholeProgramId,
-    });
-    return { connection, client };
-}
-
-/**
  * Get the program keypair (for deployment)
  */
 export function getProgramKeypair(): Keypair {

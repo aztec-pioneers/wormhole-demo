@@ -3,66 +3,43 @@ import { loadRootEnv } from "./utils/env";
 loadRootEnv();
 
 import {
-    type BaseMessageBridgeClient,
+    type BaseMessageBridgeEmitter,
     type EmitterConfig,
-    WORMHOLE_CHAIN_ID_SOLANA,
-    WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA,
-    WORMHOLE_CHAIN_ID_BASE_SEPOLIA,
-    WORMHOLE_CHAIN_ID_AZTEC,
+    WORMHOLE_CHAIN_IDS,
+    NetworkName
 } from "@aztec-wormhole-demo/shared";
-import { createAllClients, type ChainId } from "./utils/clients";
-
-// Chain configuration
-interface ChainConfig {
-    wormholeChainId: number;
-    /** false for Aztec (50-byte payload with txId), true for others (18-byte) */
-    isDefaultPayload: boolean;
-}
-
-const CHAIN_CONFIG: Record<ChainId, ChainConfig> = {
-    arbitrum: { wormholeChainId: WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA, isDefaultPayload: true },
-    base: { wormholeChainId: WORMHOLE_CHAIN_ID_BASE_SEPOLIA, isDefaultPayload: true },
-    aztec: { wormholeChainId: WORMHOLE_CHAIN_ID_AZTEC, isDefaultPayload: false },
-    solana: { wormholeChainId: WORMHOLE_CHAIN_ID_SOLANA, isDefaultPayload: true },
-};
+import { createAllClients } from "./utils/clients";
 
 async function main() {
     console.log("Configuring cross-chain bridges...\n");
 
     const clients = await createAllClients();
-    const chainIds = Object.keys(clients) as ChainId[];
+    const networks = Object.keys(clients) as NetworkName[];
     let totalRegistered = 0;
 
-    for (const sourceChainId of chainIds) {
-        const sourceClient = clients[sourceChainId];
+    for (const sourceNetwork of networks) {
+        const sourceClient = clients[sourceNetwork];
         console.log(`\n=== ${sourceClient.chainName} ===`);
-
         const toRegister: EmitterConfig[] = [];
-
-        for (const targetChainId of chainIds) {
-            if (sourceChainId === targetChainId) continue;
-
-            const targetClient = clients[targetChainId];
-            const targetConfig = CHAIN_CONFIG[targetChainId];
+        for (const targetNetwork of networks) {
+            if (sourceNetwork === targetNetwork) continue;
+            const targetClient = clients[targetNetwork];
+            const targetChainId = WORMHOLE_CHAIN_IDS[targetNetwork];
             const emitterAddress = targetClient.getEmitterAddress();
-
             const registered = await sourceClient.isEmitterRegistered(
-                targetConfig.wormholeChainId,
+                targetChainId,
                 emitterAddress
             );
-
-            if (registered) {
-                console.log(`  ${targetClient.chainName}: already registered`);
-            } else {
+            if (registered) console.log(`  ${targetClient.chainName}: already registered`);
+            else {
                 console.log(`  ${targetClient.chainName}: needs registration`);
                 toRegister.push({
-                    chainId: targetConfig.wormholeChainId,
+                    chainId: targetChainId,
                     emitter: emitterAddress,
-                    isDefaultPayload: targetConfig.isDefaultPayload,
+                    isDefaultPayload: targetNetwork !== "aztec"
                 });
             }
         }
-
         if (toRegister.length > 0) {
             console.log(`  Registering ${toRegister.length} emitter(s)...`);
             await sourceClient.registerEmitters(toRegister);
@@ -70,10 +47,9 @@ async function main() {
             console.log(`  Done!`);
         }
     }
-
     console.log("\n" + "─".repeat(40));
     if (totalRegistered > 0) {
-        console.log(`Registered ${totalRegistered} emitter(s) across ${chainIds.length} chains.`);
+        console.log(`Registered ${totalRegistered} emitter(s) across ${networks.length} chains.`);
     } else {
         console.log("All emitters already registered!");
     }

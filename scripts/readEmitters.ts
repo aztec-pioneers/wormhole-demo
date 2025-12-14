@@ -2,52 +2,35 @@
 import { loadRootEnv } from "./utils/env";
 loadRootEnv();
 
-import {
-    WORMHOLE_CHAIN_ID_SOLANA,
-    WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA,
-    WORMHOLE_CHAIN_ID_BASE_SEPOLIA,
-    WORMHOLE_CHAIN_ID_AZTEC,
-} from "@aztec-wormhole-demo/shared";
-import { createAllClients, type ChainId } from "./utils/clients";
-
-const CHAIN_CONFIG: Record<ChainId, { wormholeChainId: number }> = {
-    arbitrum: { wormholeChainId: WORMHOLE_CHAIN_ID_ARBITRUM_SEPOLIA },
-    base: { wormholeChainId: WORMHOLE_CHAIN_ID_BASE_SEPOLIA },
-    aztec: { wormholeChainId: WORMHOLE_CHAIN_ID_AZTEC },
-    solana: { wormholeChainId: WORMHOLE_CHAIN_ID_SOLANA },
-};
+import { WORMHOLE_CHAIN_IDS, NetworkName } from "@aztec-wormhole-demo/shared";
+import { createAllClients } from "./utils/clients";
 
 interface CheckResult {
-    checker: string;
-    target: string;
+    source: string;
+    destination: string;
     registered: boolean;
 }
 
 async function main() {
     console.log("Checking cross-chain bridge emitter registrations...\n");
-
     const clients = await createAllClients();
-    const chainIds = Object.keys(clients) as ChainId[];
+    const networks = Object.keys(clients) as NetworkName[];
     const results: CheckResult[] = [];
 
-    for (const sourceChainId of chainIds) {
-        const sourceClient = clients[sourceChainId];
-
-        for (const targetChainId of chainIds) {
-            if (sourceChainId === targetChainId) continue;
-
-            const targetClient = clients[targetChainId];
-            const targetConfig = CHAIN_CONFIG[targetChainId];
+    for (const sourceNetwork of networks) {
+        const sourceClient = clients[sourceNetwork];
+        for (const targetNetwork of networks) {
+            if (sourceNetwork === targetNetwork) continue;
+            const targetClient = clients[targetNetwork];
+            const targetChainId = WORMHOLE_CHAIN_IDS[targetNetwork];
             const emitterAddress = targetClient.getEmitterAddress();
-
             const registered = await sourceClient.isEmitterRegistered(
-                targetConfig.wormholeChainId,
+                targetChainId,
                 emitterAddress
             );
-
             results.push({
-                checker: sourceClient.chainName,
-                target: targetClient.chainName,
+                source: sourceClient.chainName,
+                destination: targetClient.chainName,
                 registered,
             });
         }
@@ -56,12 +39,12 @@ async function main() {
     // Print results table
     console.log("Registration Matrix:");
     console.log("─".repeat(50));
-    console.log(`${"Checker".padEnd(12)} ${"Target".padEnd(12)} ${"Status".padEnd(15)}`);
+    console.log(`${"Source".padEnd(12)} ${"Destination".padEnd(12)} ${"Status".padEnd(15)}`);
     console.log("─".repeat(50));
 
     for (const r of results) {
         const status = r.registered ? "✓ REGISTERED" : "✗ MISSING";
-        console.log(`${r.checker.padEnd(12)} ${r.target.padEnd(12)} ${status}`);
+        console.log(`${r.source.padEnd(12)} ${r.destination.padEnd(12)} ${status}`);
     }
     console.log("─".repeat(50));
 

@@ -2,12 +2,13 @@
 import { loadRootEnv } from "./utils/env";
 loadRootEnv();
 
-import { createAllClients, type ChainId } from "./utils/clients";
+import { createAllClients } from "./utils/clients";
+import { BaseMessageBridgeEmitter, NetworkName } from "@aztec-wormhole-demo/shared";
 
 async function main() {
     console.log("Reading bridge state from all chains...\n");
 
-    let clients: Record<ChainId, any>;
+    let clients: Record<NetworkName, BaseMessageBridgeEmitter>;
     try {
         clients = await createAllClients();
     } catch (err) {
@@ -15,7 +16,7 @@ async function main() {
         process.exit(1);
     }
 
-    for (const [chainId, client] of Object.entries(clients)) {
+    for (const client of Object.values(clients)) {
         console.log(`=== ${client.chainName} ===`);
         try {
             const currentValue = await client.getCurrentValue();
@@ -23,7 +24,6 @@ async function main() {
         } catch (err: any) {
             console.log(`  Error: ${err.message}`);
         }
-        console.log();
     }
 }
 

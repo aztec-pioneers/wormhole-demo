@@ -10,7 +10,7 @@
     "dev": "tsx watch src/api.ts"
   },
   "dependencies": {
-    "@aztec-wormhole-demo/aztec-contracts": "workspace:*",
+    "@aztec-wormhole-demo/aztec-sdk": "workspace:*",
     "@aztec/aztec.js": "3.0.0-devnet.5",
     "@aztec/foundation": "3.0.0-devnet.5",
     "@aztec/kv-store": "3.0.0-devnet.5",

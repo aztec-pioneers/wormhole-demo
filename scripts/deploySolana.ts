@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync, existsSync, unlinkSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { createSolanaClient } from "./utils/solana";
+import { createSolanaClient } from "./utils/clients";
 import { loadKeypair } from "./utils/solana";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -56,10 +56,10 @@ async function main() {
 
     // 7. Initialize
     console.log("\n6. Initializing bridge...");
-    await initializeBridge(newProgramId, payer);
+    const  client = await createSolanaClient();
+    await client.initialize();
 
     // 8. Summary
-    const { client } = await createSolanaClient(SOLANA_RPC_URL, newProgramId, payer);
     console.log("\n========================================");
     console.log("Deployment complete!");
     console.log(`Program ID: ${newProgramId}`);
@@ -99,18 +99,6 @@ function updateProgramIdInSources(newProgramId: string) {
     let anchorToml = readFileSync(ANCHOR_TOML_PATH, "utf8");
     anchorToml = anchorToml.replace(/message_bridge = "[^"]+"/, `message_bridge = "${newProgramId}"`);
     writeFileSync(ANCHOR_TOML_PATH, anchorToml);
-}
-
-async function initializeBridge(programId: string, payer: Keypair) {
-    const client = await createClient(programId, payer);
-    if (await client.isInitialized()) {
-        console.log("  Already initialized");
-        return;
-    }
-    const pdas = client.getPDAs();
-    console.log(`  Config PDA: ${pdas.config.toBase58()}`);
-    const sig = await client.initialize();
-    console.log(`  Transaction: ${sig}`);
 }
 
 main().catch((err) => {

@@ -83,6 +83,15 @@ export interface BaseMessageBridgeEmitter {
     // --------------------------------------------------------
 
     /**
+     * Send a value to another chain via Wormhole.
+     *
+     * @param destinationChainId - Wormhole chain ID of the destination
+     * @param value - The value to send (u128)
+     * @returns Transaction hash
+     */
+    sendValue(destinationChainId: number, value: bigint): Promise<string>;
+
+    /**
      * Register foreign emitters.
      *
      * Implementations should batch these into a single transaction where possible.
@@ -97,11 +106,10 @@ export interface BaseMessageBridgeEmitter {
 export interface BaseMessageBridgeReceiver extends BaseMessageBridgeEmitter  {
 
     /**
-     * Send a value to another chain via Wormhole.
-     *
-     * @param destinationChainId - Wormhole chain ID of the destination
-     * @param value - The value to send (u128)
+     * Receive a cross-chain value transfer VAA, validate with wormhole, and process.
+     * 
+     * @param vaaHex - VAA as 0x-prefixed hex string
      * @returns Transaction hash
      */
-    sendValue(destinationChainId: number, value: bigint): Promise<string>;
+    receiveValue(vaaHex: string): Promise<string>;
 }

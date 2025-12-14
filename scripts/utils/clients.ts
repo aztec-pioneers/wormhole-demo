@@ -3,7 +3,7 @@
  * Each factory reads configuration from environment variables.
  */
 
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrumSepolia, baseSepolia } from "viem/chains";
@@ -11,7 +11,7 @@ import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { Fr } from "@aztec/aztec.js/fields";
-
+import type { BaseMessageBridgeEmitter, NetworkName } from "@aztec-wormhole-demo/shared";
 import { EvmMessageBridgeClient } from "@aztec-wormhole-demo/evm-sdk";
 import { SolanaMessageBridgeClient, WORMHOLE_PROGRAM_ID } from "@aztec-wormhole-demo/solana-sdk";
 import { AztecMessageBridgeClient, getPriorityFeeOptions, getSponsoredPaymentMethod } from "@aztec-wormhole-demo/aztec-contracts";
@@ -133,11 +133,8 @@ export async function createAztecClient(): Promise<AztecMessageBridgeClient> {
 // ALL CLIENTS
 // ============================================================
 
-import { type BaseMessageBridgeClient } from "@aztec-wormhole-demo/shared";
 
-export type ChainId = "arbitrum" | "base" | "aztec" | "solana";
-
-export async function createAllClients(): Promise<Record<ChainId, BaseMessageBridgeClient>> {
+export async function createAllClients(): Promise<Record<NetworkName, BaseMessageBridgeEmitter>> {
     const [arbitrum, base, aztec, solana] = await Promise.all([
         createArbitrumClient(),
         createBaseClient(),

@@ -6,7 +6,7 @@ import type { SendInteractionOptions, WaitOpts } from "@aztec/aztec.js/contracts
 import {
     type BaseMessageBridgeReceiver,
     type EmitterConfig,
-    WORMHOLE_CHAIN_ID_AZTEC,
+    WORMHOLE_CHAIN_IDS,
     hexToBytes32Array,
     addressToBytes32,
 } from "@aztec-wormhole-demo/shared";
@@ -35,7 +35,7 @@ export interface AztecMessageBridgeClientOptions {
  * Implements BaseMessageBridgeReceiver for cross-chain compatibility.
  */
 export class AztecMessageBridgeClient implements BaseMessageBridgeReceiver {
-    readonly wormholeChainId = WORMHOLE_CHAIN_ID_AZTEC;
+    readonly wormholeChainId = WORMHOLE_CHAIN_IDS.aztec;
     readonly chainName = "Aztec";
 
     private readonly wormholeAddress: AztecAddress;

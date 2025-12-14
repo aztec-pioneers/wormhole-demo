@@ -1,5 +1,5 @@
 {
-  "name": "@aztec-wormhole-demo/aztec-contracts",
+  "name": "@aztec-wormhole-demo/aztec-sdk",
   "version": "1.0.0",
   "description": "Aztec contracts and TypeScript library for Wormhole demo",
   "license": "MIT",

@@ -8,9 +8,15 @@ importers:
 
   .:
     dependencies:
-      '@aztec-wormhole-demo/aztec-contracts':
+      '@aztec-wormhole-demo/aztec-sdk':
         specifier: workspace:*
         version: link:packages/aztec
+      '@aztec-wormhole-demo/evm-sdk':
+        specifier: workspace:^
+        version: link:packages/evm/ts
+      '@aztec-wormhole-demo/shared':
+        specifier: workspace:*
+        version: link:packages/shared
       '@aztec-wormhole-demo/solana-sdk':
         specifier: workspace:^
         version: link:packages/solana/ts
@@ -88,7 +94,7 @@ importers:
 
   packages/aztec-vaa-service:
     dependencies:
-      '@aztec-wormhole-demo/aztec-contracts':
+      '@aztec-wormhole-demo/aztec-sdk':
         specifier: workspace:*
         version: link:../aztec
       '@aztec/aztec.js':

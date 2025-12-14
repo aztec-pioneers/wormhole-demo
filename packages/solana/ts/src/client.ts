@@ -23,14 +23,14 @@ import {
     WORMHOLE_PROGRAM_ID,
     DISCRIMINATORS,
     WORMHOLE_CHAIN_ID_SOLANA,
-} from "./constants.js";
+} from "./constants";
 import type {
     Config,
     CurrentValue,
     ForeignEmitter,
     ProgramPDAs,
     WormholePDAs,
-} from "./types.js";
+} from "./types";
 import {
     type BaseMessageBridgeReceiver,
     type EmitterConfig,
@@ -301,41 +301,42 @@ export class SolanaMessageBridgeClient implements BaseMessageBridgeReceiver {
         return await sendAndConfirmTransaction(this.connection, tx, [this.payer]);
     }
 
-    async receiveValue(vaa: Uint8Array): Promise<string> {
-        const { emitterChain, sequence, value, bodyHash } = parseVaa(vaa);
+    async receiveValue(vaaHex: string): Promise<string> {
+        // const { emitterChain, sequence, value, bodyHash } = parseVaa(vaa);
 
-        const [postedVaa] = PublicKey.findProgramAddressSync(
-            [SEED_WORMHOLE_POSTED_VAA, bodyHash],
-            this.wormholeProgramId
-        );
+        // const [postedVaa] = PublicKey.findProgramAddressSync(
+        //     [SEED_WORMHOLE_POSTED_VAA, bodyHash],
+        //     this.wormholeProgramId
+        // );
 
-        const pdas = this.getPDAs();
-        const [foreignEmitter] = this.getForeignEmitterPDA(emitterChain);
-        const [receivedMessage] = this.getReceivedMessagePDA(emitterChain, sequence);
+        // const pdas = this.getPDAs();
+        // const [foreignEmitter] = this.getForeignEmitterPDA(emitterChain);
+        // const [receivedMessage] = this.getReceivedMessagePDA(emitterChain, sequence);
 
-        const data = Buffer.alloc(8 + 32 + 2 + 8);
-        DISCRIMINATORS.receiveValue.copy(data, 0);
-        Buffer.from(bodyHash).copy(data, 8);
-        data.writeUInt16LE(emitterChain, 40);
-        data.writeBigUInt64LE(sequence, 42);
+        // const data = Buffer.alloc(8 + 32 + 2 + 8);
+        // DISCRIMINATORS.receiveValue.copy(data, 0);
+        // Buffer.from(bodyHash).copy(data, 8);
+        // data.writeUInt16LE(emitterChain, 40);
+        // data.writeBigUInt64LE(sequence, 42);
 
-        const ix = new TransactionInstruction({
-            keys: [
-                { pubkey: this.payer.publicKey, isSigner: true, isWritable: true },
-                { pubkey: pdas.config, isSigner: false, isWritable: false },
-                { pubkey: pdas.currentValue, isSigner: false, isWritable: true },
-                { pubkey: this.wormholeProgramId, isSigner: false, isWritable: false },
-                { pubkey: postedVaa, isSigner: false, isWritable: false },
-                { pubkey: foreignEmitter, isSigner: false, isWritable: false },
-                { pubkey: receivedMessage, isSigner: false, isWritable: true },
-                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-            ],
-            programId: this.programId,
-            data,
-        });
+        // const ix = new TransactionInstruction({
+        //     keys: [
+        //         { pubkey: this.payer.publicKey, isSigner: true, isWritable: true },
+        //         { pubkey: pdas.config, isSigner: false, isWritable: false },
+        //         { pubkey: pdas.currentValue, isSigner: false, isWritable: true },
+        //         { pubkey: this.wormholeProgramId, isSigner: false, isWritable: false },
+        //         { pubkey: postedVaa, isSigner: false, isWritable: false },
+        //         { pubkey: foreignEmitter, isSigner: false, isWritable: false },
+        //         { pubkey: receivedMessage, isSigner: false, isWritable: true },
+        //         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        //     ],
+        //     programId: this.programId,
+        //     data,
+        // });
 
-        const tx = new Transaction().add(ix);
-        return await sendAndConfirmTransaction(this.connection, tx, [this.payer]);
+        // const tx = new Transaction().add(ix);
+        // return await sendAndConfirmTransaction(this.connection, tx, [this.payer]);
+        return "";
     }
 
     // ============================================================
