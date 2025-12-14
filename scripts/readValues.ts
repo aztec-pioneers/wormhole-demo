@@ -7,7 +7,7 @@ import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { MessageBridgeContract, MessageBridgeContractArtifact } from "@aztec-wormhole-demo/aztec-contracts/artifacts";
 import { loadAccount, getTestnetPxeConfig } from "./utils/aztec";
-import { createEvmClients, MESSAGE_BRIDGE_ABI } from "./utils/evm";
+import { createEvmClients, MESSAGE_BRIDGE_ABI, EvmChainName } from "./utils/evm";
 import { createSolanaClient } from "./utils/solana";
 import { getAddress } from "viem";
 
@@ -16,36 +16,47 @@ const {
     AZTEC_BRIDGE_ADDRESS,
     ARBITRUM_RPC_URL,
     EVM_PRIVATE_KEY,
-    EVM_BRIDGE_ADDRESS,
+    ARBITRUM_BRIDGE_ADDRESS,
+    BASE_RPC_URL,
+    BASE_BRIDGE_ADDRESS,
     SOLANA_RPC_URL,
     SOLANA_BRIDGE_PROGRAM_ID,
 } = process.env;
 
 const SOLANA_ENABLED = SOLANA_RPC_URL && SOLANA_BRIDGE_PROGRAM_ID;
 
-async function readEvmBridge() {
-    if (!ARBITRUM_RPC_URL || !EVM_BRIDGE_ADDRESS) {
-        console.log("EVM Bridge: Not configured (missing ARBITRUM_RPC_URL or EVM_BRIDGE_ADDRESS)");
+async function readEvmBridge(chainName: EvmChainName, rpcUrl: string | undefined, bridgeAddress: string | undefined, displayName: string) {
+    if (!rpcUrl || !bridgeAddress) {
+        console.log(`\n=== ${displayName} ===`);
+        console.log(`  Not configured (missing RPC URL or bridge address)`);
         return;
     }
 
     try {
-        const { publicClient } = createEvmClients(ARBITRUM_RPC_URL, EVM_PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001");
-        const bridgeAddress = getAddress(EVM_BRIDGE_ADDRESS);
+        const { publicClient } = createEvmClients(rpcUrl, EVM_PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001", chainName);
+        const address = getAddress(bridgeAddress);
 
         const currentValue = await publicClient.readContract({
-            address: bridgeAddress,
+            address,
             abi: MESSAGE_BRIDGE_ABI,
             functionName: "currentValue",
         }) as number;
 
-        console.log("\n=== EVM Bridge (Arbitrum Sepolia) ===");
-        console.log(`  Contract: ${bridgeAddress}`);
+        console.log(`\n=== ${displayName} ===`);
+        console.log(`  Contract: ${address}`);
         console.log(`  Current value: ${currentValue}`);
     } catch (err) {
-        console.log("\n=== EVM Bridge (Arbitrum Sepolia) ===");
+        console.log(`\n=== ${displayName} ===`);
         console.log(`  Error reading: ${err}`);
     }
+}
+
+async function readArbitrumBridge() {
+    await readEvmBridge("arbitrum", ARBITRUM_RPC_URL, ARBITRUM_BRIDGE_ADDRESS, "Arbitrum Bridge (Sepolia)");
+}
+
+async function readBaseBridge() {
+    await readEvmBridge("base", BASE_RPC_URL, BASE_BRIDGE_ADDRESS, "Base Bridge (Sepolia)");
 }
 
 async function readAztecBridge() {
@@ -116,7 +127,8 @@ async function main() {
     console.log("Reading bridge state from all chains...");
 
     await Promise.all([
-        readEvmBridge(),
+        readArbitrumBridge(),
+        readBaseBridge(),
         readAztecBridge(),
         readSolanaBridge(),
     ]);

@@ -24,8 +24,8 @@ const (
 	SolanaDestinationChainID uint16 = 1
 )
 
-// Default source chains for Solana destination (Arbitrum=10003, Aztec=56)
-var DefaultSolanaSourceChains = []int{10003, 56}
+// Default source chains for Solana destination (Arbitrum=10003, Aztec=56, Base=10004)
+var DefaultSolanaSourceChains = []int{10003, 56, 10004}
 
 // solanaCmd represents the command to relay VAAs to Solana
 var solanaCmd = &cobra.Command{
@@ -69,7 +69,7 @@ func init() {
 	solanaCmd.Flags().IntSlice(
 		"chain-ids",
 		DefaultSolanaSourceChains,
-		"Source chain IDs to listen for (Arbitrum=10003, Aztec=56)")
+		"Source chain IDs to listen for (Arbitrum=10003, Aztec=56, Base=10004)")
 
 	solanaCmd.Flags().String(
 		"emitter-address",

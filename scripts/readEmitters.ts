@@ -9,12 +9,13 @@ import { TestWallet } from "@aztec/test-wallet/server";
 import { MessageBridgeContract, MessageBridgeContractArtifact } from "@aztec-wormhole-demo/aztec-contracts/artifacts";
 import { loadAccount, getTestnetPxeConfig } from "./utils/aztec";
 import { addressToBytes32, hexToBytes32Array } from "./utils/bytes";
-import { createEvmClients, MESSAGE_BRIDGE_ABI } from "./utils/evm";
+import { createEvmClients, MESSAGE_BRIDGE_ABI, EvmChainName } from "./utils/evm";
 import { createSolanaClient, formatEmitterAddress } from "./utils/solana";
-import { AZTEC_WORMHOLE_CHAIN_ID, ARBITRUM_SEPOLIA_CHAIN_ID } from "@aztec-wormhole-demo/aztec-contracts/constants";
+import { AZTEC_WORMHOLE_CHAIN_ID, ARBITRUM_SEPOLIA_CHAIN_ID, BASE_SEPOLIA_CHAIN_ID } from "@aztec-wormhole-demo/aztec-contracts/constants";
 import {
     CHAIN_ID_SOLANA,
     CHAIN_ID_ARBITRUM_SEPOLIA,
+    CHAIN_ID_BASE_SEPOLIA,
     CHAIN_ID_AZTEC,
     MessageBridgeClient,
 } from "@aztec-wormhole-demo/solana-sdk";
@@ -22,11 +23,13 @@ import {
 const {
     AZTEC_NODE_URL,
     ARBITRUM_RPC_URL,
+    BASE_RPC_URL,
     EVM_PRIVATE_KEY,
     AZTEC_BRIDGE_ADDRESS,
-    EVM_BRIDGE_ADDRESS,
+    ARBITRUM_BRIDGE_ADDRESS,
+    BASE_BRIDGE_ADDRESS,
     AZTEC_WORMHOLE_ADDRESS,
-    EVM_WORMHOLE_ADDRESS,
+    BASE_WORMHOLE_ADDRESS,
     SOLANA_RPC_URL,
     SOLANA_BRIDGE_PROGRAM_ID,
 } = process.env;
@@ -35,27 +38,33 @@ if (!AZTEC_NODE_URL) throw new Error("AZTEC_NODE_URL not set in .env");
 if (!ARBITRUM_RPC_URL) throw new Error("ARBITRUM_RPC_URL not set in .env");
 if (!EVM_PRIVATE_KEY) throw new Error("EVM_PRIVATE_KEY not set in .env");
 if (!AZTEC_BRIDGE_ADDRESS) throw new Error("AZTEC_BRIDGE_ADDRESS not set in .env - deploy Aztec bridge first");
-if (!EVM_BRIDGE_ADDRESS) throw new Error("EVM_BRIDGE_ADDRESS not set in .env - deploy EVM bridge first");
+if (!ARBITRUM_BRIDGE_ADDRESS) throw new Error("ARBITRUM_BRIDGE_ADDRESS not set in .env - deploy EVM bridge first");
 if (!AZTEC_WORMHOLE_ADDRESS) throw new Error("AZTEC_WORMHOLE_ADDRESS not set in .env");
-if (!EVM_WORMHOLE_ADDRESS) throw new Error("EVM_WORMHOLE_ADDRESS not set in .env");
 
-// Solana is optional for now
+// Solana is optional
 const SOLANA_ENABLED = SOLANA_RPC_URL && SOLANA_BRIDGE_PROGRAM_ID;
+// Base is optional (may not be deployed yet)
+const BASE_ENABLED = BASE_RPC_URL && BASE_BRIDGE_ADDRESS && BASE_WORMHOLE_ADDRESS;
 
 interface CheckResult {
     side: string;
     expectedEmitter: string;
     registeredEmitter: string;
     isRegistered: boolean;
-    isEnabled?: boolean;
 }
 
-async function checkEvmBridge(): Promise<CheckResult[]> {
-    console.log("\n=== Checking EVM MessageBridge ===");
-    console.log(`EVM Bridge Address: ${EVM_BRIDGE_ADDRESS}`);
+async function checkEvmBridge(
+    chainName: EvmChainName,
+    rpcUrl: string,
+    bridgeAddress: string,
+    displayName: string,
+    wormholeChainId: number
+): Promise<CheckResult[]> {
+    console.log(`\n=== Checking ${displayName} ===`);
+    console.log(`Bridge Address: ${bridgeAddress}`);
 
-    const { publicClient } = createEvmClients(ARBITRUM_RPC_URL!, EVM_PRIVATE_KEY!);
-    const evmBridgeAddress = getAddress(EVM_BRIDGE_ADDRESS!);
+    const { publicClient } = createEvmClients(rpcUrl, EVM_PRIVATE_KEY!, chainName);
+    const evmBridgeAddress = getAddress(bridgeAddress);
     const results: CheckResult[] = [];
 
     // Check Aztec emitter
@@ -71,10 +80,10 @@ async function checkEvmBridge(): Promise<CheckResult[]> {
     const aztecMatch = aztecRegistered.toLowerCase() === aztecExpected.toLowerCase();
     console.log(`    Expected: ${aztecExpected}`);
     console.log(`    Registered: ${aztecRegistered}`);
-    console.log(`    Status: ${aztecMatch ? "✅ REGISTERED" : "❌ NOT REGISTERED"}`);
+    console.log(`    Status: ${aztecMatch ? "REGISTERED" : "NOT REGISTERED"}`);
 
     results.push({
-        side: "EVM (Aztec emitter)",
+        side: `${displayName} (Aztec emitter)`,
         expectedEmitter: aztecExpected,
         registeredEmitter: aztecRegistered,
         isRegistered: aztecMatch,
@@ -97,17 +106,74 @@ async function checkEvmBridge(): Promise<CheckResult[]> {
         const solanaMatch = solanaRegistered.toLowerCase() === solanaExpected.toLowerCase();
         console.log(`    Expected: ${solanaExpected}`);
         console.log(`    Registered: ${solanaRegistered}`);
-        console.log(`    Status: ${solanaMatch ? "✅ REGISTERED" : "❌ NOT REGISTERED"}`);
+        console.log(`    Status: ${solanaMatch ? "REGISTERED" : "NOT REGISTERED"}`);
 
         results.push({
-            side: "EVM (Solana emitter)",
+            side: `${displayName} (Solana emitter)`,
             expectedEmitter: solanaExpected,
             registeredEmitter: solanaRegistered,
             isRegistered: solanaMatch,
         });
     }
 
+    // Check other EVM chain emitter
+    if (chainName === "arbitrum" && BASE_ENABLED) {
+        console.log(`\n  Checking Base emitter (chain ${BASE_SEPOLIA_CHAIN_ID})...`);
+        const baseExpected = addressToBytes32(BASE_BRIDGE_ADDRESS!);
+        const baseRegistered = await publicClient.readContract({
+            address: evmBridgeAddress,
+            abi: MESSAGE_BRIDGE_ABI,
+            functionName: "registeredEmitters",
+            args: [BASE_SEPOLIA_CHAIN_ID],
+        }) as `0x${string}`;
+
+        const baseMatch = baseRegistered.toLowerCase() === baseExpected.toLowerCase();
+        console.log(`    Expected: ${baseExpected}`);
+        console.log(`    Registered: ${baseRegistered}`);
+        console.log(`    Status: ${baseMatch ? "REGISTERED" : "NOT REGISTERED"}`);
+
+        results.push({
+            side: `${displayName} (Base emitter)`,
+            expectedEmitter: baseExpected,
+            registeredEmitter: baseRegistered,
+            isRegistered: baseMatch,
+        });
+    } else if (chainName === "base") {
+        console.log(`\n  Checking Arbitrum emitter (chain ${ARBITRUM_SEPOLIA_CHAIN_ID})...`);
+        const arbExpected = addressToBytes32(ARBITRUM_BRIDGE_ADDRESS!);
+        const arbRegistered = await publicClient.readContract({
+            address: evmBridgeAddress,
+            abi: MESSAGE_BRIDGE_ABI,
+            functionName: "registeredEmitters",
+            args: [ARBITRUM_SEPOLIA_CHAIN_ID],
+        }) as `0x${string}`;
+
+        const arbMatch = arbRegistered.toLowerCase() === arbExpected.toLowerCase();
+        console.log(`    Expected: ${arbExpected}`);
+        console.log(`    Registered: ${arbRegistered}`);
+        console.log(`    Status: ${arbMatch ? "REGISTERED" : "NOT REGISTERED"}`);
+
+        results.push({
+            side: `${displayName} (Arbitrum emitter)`,
+            expectedEmitter: arbExpected,
+            registeredEmitter: arbRegistered,
+            isRegistered: arbMatch,
+        });
+    }
+
     return results;
+}
+
+async function checkArbitrumBridge(): Promise<CheckResult[]> {
+    return checkEvmBridge("arbitrum", ARBITRUM_RPC_URL!, ARBITRUM_BRIDGE_ADDRESS!, "Arbitrum MessageBridge", ARBITRUM_SEPOLIA_CHAIN_ID);
+}
+
+async function checkBaseBridge(): Promise<CheckResult[]> {
+    if (!BASE_ENABLED) {
+        console.log("\n=== Skipping Base MessageBridge (not configured) ===");
+        return [];
+    }
+    return checkEvmBridge("base", BASE_RPC_URL!, BASE_BRIDGE_ADDRESS!, "Base MessageBridge", BASE_SEPOLIA_CHAIN_ID);
 }
 
 async function checkAztecBridge(): Promise<CheckResult[]> {
@@ -127,23 +193,43 @@ async function checkAztecBridge(): Promise<CheckResult[]> {
     const bridge = await MessageBridgeContract.at(bridgeAddress, wallet);
     const results: CheckResult[] = [];
 
-    // Check EVM emitter
-    console.log(`\n  Checking EVM emitter (chain ${ARBITRUM_SEPOLIA_CHAIN_ID})...`);
-    const evmExpected = addressToBytes32(EVM_BRIDGE_ADDRESS!);
-    const evmEmitterBytes = hexToBytes32Array(EVM_BRIDGE_ADDRESS!);
-    const evmRegistered = await bridge.methods
-        .is_emitter_registered(ARBITRUM_SEPOLIA_CHAIN_ID, evmEmitterBytes as any)
+    // Check Arbitrum emitter
+    console.log(`\n  Checking Arbitrum emitter (chain ${ARBITRUM_SEPOLIA_CHAIN_ID})...`);
+    const arbExpected = addressToBytes32(ARBITRUM_BRIDGE_ADDRESS!);
+    const arbEmitterBytes = hexToBytes32Array(ARBITRUM_BRIDGE_ADDRESS!);
+    const arbRegistered = await bridge.methods
+        .is_emitter_registered(ARBITRUM_SEPOLIA_CHAIN_ID, arbEmitterBytes as any)
         .simulate({ from: adminAddress });
 
-    console.log(`    Expected: ${evmExpected}`);
-    console.log(`    Status: ${evmRegistered ? "✅ REGISTERED" : "❌ NOT REGISTERED"}`);
+    console.log(`    Expected: ${arbExpected}`);
+    console.log(`    Status: ${arbRegistered ? "REGISTERED" : "NOT REGISTERED"}`);
 
     results.push({
-        side: "Aztec (EVM emitter)",
-        expectedEmitter: evmExpected,
-        registeredEmitter: evmRegistered ? evmExpected : "0x" + "0".repeat(64),
-        isRegistered: evmRegistered,
+        side: "Aztec (Arbitrum emitter)",
+        expectedEmitter: arbExpected,
+        registeredEmitter: arbRegistered ? arbExpected : "0x" + "0".repeat(64),
+        isRegistered: arbRegistered,
     });
+
+    // Check Base emitter if enabled
+    if (BASE_ENABLED) {
+        console.log(`\n  Checking Base emitter (chain ${BASE_SEPOLIA_CHAIN_ID})...`);
+        const baseExpected = addressToBytes32(BASE_BRIDGE_ADDRESS!);
+        const baseEmitterBytes = hexToBytes32Array(BASE_BRIDGE_ADDRESS!);
+        const baseRegistered = await bridge.methods
+            .is_emitter_registered(BASE_SEPOLIA_CHAIN_ID, baseEmitterBytes as any)
+            .simulate({ from: adminAddress });
+
+        console.log(`    Expected: ${baseExpected}`);
+        console.log(`    Status: ${baseRegistered ? "REGISTERED" : "NOT REGISTERED"}`);
+
+        results.push({
+            side: "Aztec (Base emitter)",
+            expectedEmitter: baseExpected,
+            registeredEmitter: baseRegistered ? baseExpected : "0x" + "0".repeat(64),
+            isRegistered: baseRegistered,
+        });
+    }
 
     // Check Solana emitter if enabled
     if (SOLANA_ENABLED) {
@@ -158,7 +244,7 @@ async function checkAztecBridge(): Promise<CheckResult[]> {
             .simulate({ from: adminAddress });
 
         console.log(`    Expected: ${solanaExpected}`);
-        console.log(`    Status: ${solanaRegistered ? "✅ REGISTERED" : "❌ NOT REGISTERED"}`);
+        console.log(`    Status: ${solanaRegistered ? "REGISTERED" : "NOT REGISTERED"}`);
 
         results.push({
             side: "Aztec (Solana emitter)",
@@ -186,7 +272,7 @@ async function checkSolanaBridge(): Promise<CheckResult[]> {
     // Check if initialized
     const isInitialized = await client.isInitialized();
     if (!isInitialized) {
-        console.log("  ⚠️  Program not initialized yet");
+        console.log("  Program not initialized yet");
         return [{
             side: "Solana",
             expectedEmitter: "N/A",
@@ -195,23 +281,43 @@ async function checkSolanaBridge(): Promise<CheckResult[]> {
         }];
     }
 
-    // Check EVM emitter
-    console.log(`\n  Checking EVM emitter (chain ${CHAIN_ID_ARBITRUM_SEPOLIA})...`);
-    const evmExpected = MessageBridgeClient.evmAddressToWormhole(EVM_BRIDGE_ADDRESS!);
-    const evmEmitter = await client.getForeignEmitter(CHAIN_ID_ARBITRUM_SEPOLIA);
-    const evmRegistered = evmEmitter !== null &&
-        Buffer.from(evmEmitter.address).equals(Buffer.from(evmExpected));
+    // Check Arbitrum emitter
+    console.log(`\n  Checking Arbitrum emitter (chain ${CHAIN_ID_ARBITRUM_SEPOLIA})...`);
+    const arbExpected = MessageBridgeClient.evmAddressToWormhole(ARBITRUM_BRIDGE_ADDRESS!);
+    const arbEmitter = await client.getForeignEmitter(CHAIN_ID_ARBITRUM_SEPOLIA);
+    const arbRegistered = arbEmitter !== null &&
+        Buffer.from(arbEmitter.address).equals(Buffer.from(arbExpected));
 
-    console.log(`    Expected: ${formatEmitterAddress(evmExpected)}`);
-    console.log(`    Registered: ${evmEmitter ? formatEmitterAddress(evmEmitter.address) : "None"}`);
-    console.log(`    Status: ${evmRegistered ? "✅ REGISTERED" : "❌ NOT REGISTERED"}`);
+    console.log(`    Expected: ${formatEmitterAddress(arbExpected)}`);
+    console.log(`    Registered: ${arbEmitter ? formatEmitterAddress(arbEmitter.address) : "None"}`);
+    console.log(`    Status: ${arbRegistered ? "REGISTERED" : "NOT REGISTERED"}`);
 
     results.push({
-        side: "Solana (EVM emitter)",
-        expectedEmitter: formatEmitterAddress(evmExpected),
-        registeredEmitter: evmEmitter ? formatEmitterAddress(evmEmitter.address) : "0x" + "0".repeat(64),
-        isRegistered: evmRegistered,
+        side: "Solana (Arbitrum emitter)",
+        expectedEmitter: formatEmitterAddress(arbExpected),
+        registeredEmitter: arbEmitter ? formatEmitterAddress(arbEmitter.address) : "0x" + "0".repeat(64),
+        isRegistered: arbRegistered,
     });
+
+    // Check Base emitter if enabled
+    if (BASE_ENABLED) {
+        console.log(`\n  Checking Base emitter (chain ${CHAIN_ID_BASE_SEPOLIA})...`);
+        const baseExpected = MessageBridgeClient.evmAddressToWormhole(BASE_BRIDGE_ADDRESS!);
+        const baseEmitter = await client.getForeignEmitter(CHAIN_ID_BASE_SEPOLIA);
+        const baseRegistered = baseEmitter !== null &&
+            Buffer.from(baseEmitter.address).equals(Buffer.from(baseExpected));
+
+        console.log(`    Expected: ${formatEmitterAddress(baseExpected)}`);
+        console.log(`    Registered: ${baseEmitter ? formatEmitterAddress(baseEmitter.address) : "None"}`);
+        console.log(`    Status: ${baseRegistered ? "REGISTERED" : "NOT REGISTERED"}`);
+
+        results.push({
+            side: "Solana (Base emitter)",
+            expectedEmitter: formatEmitterAddress(baseExpected),
+            registeredEmitter: baseEmitter ? formatEmitterAddress(baseEmitter.address) : "0x" + "0".repeat(64),
+            isRegistered: baseRegistered,
+        });
+    }
 
     // Check Aztec emitter
     console.log(`\n  Checking Aztec emitter (chain ${CHAIN_ID_AZTEC})...`);
@@ -222,7 +328,7 @@ async function checkSolanaBridge(): Promise<CheckResult[]> {
 
     console.log(`    Expected: ${formatEmitterAddress(aztecExpected)}`);
     console.log(`    Registered: ${aztecEmitter ? formatEmitterAddress(aztecEmitter.address) : "None"}`);
-    console.log(`    Status: ${aztecRegistered ? "✅ REGISTERED" : "❌ NOT REGISTERED"}`);
+    console.log(`    Status: ${aztecRegistered ? "REGISTERED" : "NOT REGISTERED"}`);
 
     results.push({
         side: "Solana (Aztec emitter)",
@@ -238,7 +344,10 @@ async function main() {
     console.log("Checking cross-chain bridge emitter registrations...");
     console.log(`\nAddresses from .env:`);
     console.log(`  Aztec Bridge: ${AZTEC_BRIDGE_ADDRESS}`);
-    console.log(`  EVM Bridge: ${EVM_BRIDGE_ADDRESS}`);
+    console.log(`  Arbitrum Bridge: ${ARBITRUM_BRIDGE_ADDRESS}`);
+    if (BASE_ENABLED) {
+        console.log(`  Base Bridge: ${BASE_BRIDGE_ADDRESS}`);
+    }
     console.log(`  Aztec Wormhole (emitter for Aztec->EVM): ${AZTEC_WORMHOLE_ADDRESS}`);
     if (SOLANA_ENABLED) {
         console.log(`  Solana Program: ${SOLANA_BRIDGE_PROGRAM_ID}`);
@@ -246,8 +355,11 @@ async function main() {
 
     const results: CheckResult[] = [];
 
-    // Check EVM side
-    results.push(...await checkEvmBridge());
+    // Check Arbitrum side
+    results.push(...await checkArbitrumBridge());
+
+    // Check Base side
+    results.push(...await checkBaseBridge());
 
     // Check Aztec side
     results.push(...await checkAztecBridge());
@@ -259,15 +371,13 @@ async function main() {
     console.log("\n=== Summary ===");
     const allGood = results.every(r => r.isRegistered);
 
+    const chainCount = [true, BASE_ENABLED, SOLANA_ENABLED].filter(Boolean).length + 1; // +1 for Aztec
+
     if (allGood) {
-        console.log("✅ All emitters are correctly registered!");
-        if (SOLANA_ENABLED) {
-            console.log("   All three bridges trust each other for cross-chain messaging.");
-        } else {
-            console.log("   Both bridges trust each other for cross-chain messaging.");
-        }
+        console.log(`All emitters are correctly registered!`);
+        console.log(`   All ${chainCount} bridges trust each other for cross-chain messaging.`);
     } else {
-        console.log("❌ Some emitters are not correctly registered:");
+        console.log("Some emitters are not correctly registered:");
         for (const result of results) {
             if (!result.isRegistered) {
                 console.log(`   - ${result.side}:`);
@@ -275,7 +385,7 @@ async function main() {
                 console.log(`       Got: ${result.registeredEmitter}`);
             }
         }
-        console.log("\nRun 'pnpm run configure:aztec' to register the emitters.");
+        console.log("\nRun 'pnpm run register-emitters' to register the emitters.");
         process.exit(1);
     }
 }

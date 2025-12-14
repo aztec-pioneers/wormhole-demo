@@ -28,8 +28,8 @@ const (
 	AztecDestinationChainID uint16 = 56
 )
 
-// Default source chains for Aztec destination (Arbitrum=10003, Solana=1)
-var DefaultAztecSourceChains = []int{10003, 1}
+// Default source chains for Aztec destination (Arbitrum=10003, Solana=1, Base=10004)
+var DefaultAztecSourceChains = []int{10003, 1, 10004}
 
 // aztecCmd represents the command to relay VAAs to Aztec
 var aztecCmd = &cobra.Command{
@@ -73,7 +73,7 @@ func init() {
 	aztecCmd.Flags().IntSlice(
 		"chain-ids",
 		DefaultAztecSourceChains,
-		"Source chain IDs to listen for (Arbitrum=10003, Solana=1)")
+		"Source chain IDs to listen for (Arbitrum=10003, Solana=1, Base=10004)")
 
 	aztecCmd.Flags().String(
 		"emitter-address",

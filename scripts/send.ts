@@ -7,24 +7,25 @@ import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { MessageBridgeContract, MessageBridgeContractArtifact, WormholeContractArtifact } from "@aztec-wormhole-demo/aztec-contracts/artifacts";
 import { loadAccount, getTestnetPxeConfig, testnetSendWaitOpts } from "./utils/aztec";
-import { createEvmClients, MESSAGE_BRIDGE_ABI } from "./utils/evm";
+import { createEvmClients, MESSAGE_BRIDGE_ABI, EvmChainName } from "./utils/evm";
 import { createSolanaClient, loadKeypair } from "./utils/solana";
 import { getAddress } from "viem";
 import { Fr } from "@aztec/aztec.js/fields";
 import {
     CHAIN_ID_SOLANA,
     CHAIN_ID_ARBITRUM_SEPOLIA,
+    CHAIN_ID_BASE_SEPOLIA,
     CHAIN_ID_AZTEC,
 } from "@aztec-wormhole-demo/solana-sdk";
-import { AZTEC_WORMHOLE_CHAIN_ID, ARBITRUM_SEPOLIA_CHAIN_ID } from "@aztec-wormhole-demo/aztec-contracts/constants";
 
 // Valid chain names
-const VALID_CHAINS = ["arbitrum", "solana", "aztec"] as const;
+const VALID_CHAINS = ["arbitrum", "base", "solana", "aztec"] as const;
 type ChainName = typeof VALID_CHAINS[number];
 
 // Chain name to Wormhole chain ID mapping
 const CHAIN_IDS: Record<ChainName, number> = {
     arbitrum: CHAIN_ID_ARBITRUM_SEPOLIA,
+    base: CHAIN_ID_BASE_SEPOLIA,
     solana: CHAIN_ID_SOLANA,
     aztec: CHAIN_ID_AZTEC,
 };
@@ -35,8 +36,10 @@ const {
     AZTEC_BRIDGE_ADDRESS,
     AZTEC_WORMHOLE_ADDRESS,
     ARBITRUM_RPC_URL,
+    BASE_RPC_URL,
     EVM_PRIVATE_KEY,
-    EVM_BRIDGE_ADDRESS,
+    ARBITRUM_BRIDGE_ADDRESS,
+    BASE_BRIDGE_ADDRESS,
     SOLANA_RPC_URL,
     SOLANA_BRIDGE_PROGRAM_ID,
 } = process.env;
@@ -64,14 +67,14 @@ Arguments:
   <value>                  The value to send (must be a valid u128: 0 to ${MAX_U128})
 
 Options:
-  --from <source>          Source chain (required): arbitrum | solana | aztec
-  --to <destination>       Destination chain (required): arbitrum | solana | aztec
+  --from <source>          Source chain (required): arbitrum | base | solana | aztec
+  --to <destination>       Destination chain (required): arbitrum | base | solana | aztec
   --public                 Use public mode for Aztec (default: private)
   --help                   Show this help message
 
 Examples:
   pnpm send 42 --from arbitrum --to aztec
-  pnpm send 100 --from aztec --to solana
+  pnpm send 100 --from aztec --to base
   pnpm send 1000 --from solana --to arbitrum --public
 
 Notes:
@@ -148,24 +151,31 @@ function parseArgs(): { value: bigint; from: ChainName; to: ChainName; mode: "pr
 }
 
 // ============================================================
-// SEND FROM ARBITRUM
+// SEND FROM EVM (ARBITRUM or BASE)
 // ============================================================
 
-async function sendFromArbitrum(destinationChainId: number, value: bigint, destinationName: string) {
-    if (!ARBITRUM_RPC_URL) throw new Error("ARBITRUM_RPC_URL not set in .env");
+async function sendFromEvm(
+    chainName: EvmChainName,
+    rpcUrl: string,
+    bridgeAddress: string,
+    displayName: string,
+    explorerUrl: string,
+    destinationChainId: number,
+    value: bigint,
+    destinationName: string
+) {
     if (!EVM_PRIVATE_KEY) throw new Error("EVM_PRIVATE_KEY not set in .env");
-    if (!EVM_BRIDGE_ADDRESS) throw new Error("EVM_BRIDGE_ADDRESS not set in .env");
 
-    console.log(`\nConnecting to Arbitrum Sepolia...`);
-    const { account, publicClient, walletClient } = createEvmClients(ARBITRUM_RPC_URL, EVM_PRIVATE_KEY);
-    const bridgeAddress = getAddress(EVM_BRIDGE_ADDRESS);
+    console.log(`\nConnecting to ${displayName}...`);
+    const { account, publicClient, walletClient } = createEvmClients(rpcUrl, EVM_PRIVATE_KEY, chainName);
+    const bridge = getAddress(bridgeAddress);
 
     console.log(`  Account: ${account.address}`);
-    console.log(`  Bridge: ${bridgeAddress}`);
+    console.log(`  Bridge: ${bridge}`);
 
     // Get Wormhole message fee
     const wormholeAddress = await publicClient.readContract({
-        address: bridgeAddress,
+        address: bridge,
         abi: MESSAGE_BRIDGE_ABI,
         functionName: "WORMHOLE",
     }) as `0x${string}`;
@@ -181,7 +191,7 @@ async function sendFromArbitrum(destinationChainId: number, value: bigint, desti
     console.log(`\nSending value ${value} to ${destinationName} (chain ${destinationChainId})...`);
 
     const hash = await walletClient.writeContract({
-        address: bridgeAddress,
+        address: bridge,
         abi: MESSAGE_BRIDGE_ABI,
         functionName: "sendValue",
         args: [destinationChainId, value],
@@ -194,8 +204,40 @@ async function sendFromArbitrum(destinationChainId: number, value: bigint, desti
     console.log(`  Confirmed in block ${receipt.blockNumber}`);
 
     console.log(`\nExplorer links:`);
-    console.log(`  Arbitrum: https://sepolia.arbiscan.io/tx/${hash}`);
+    console.log(`  ${displayName}: ${explorerUrl}/tx/${hash}`);
     console.log(`  Wormhole: https://wormholescan.io/#/tx/${hash}?network=Testnet`);
+}
+
+async function sendFromArbitrum(destinationChainId: number, value: bigint, destinationName: string) {
+    if (!ARBITRUM_RPC_URL) throw new Error("ARBITRUM_RPC_URL not set in .env");
+    if (!ARBITRUM_BRIDGE_ADDRESS) throw new Error("ARBITRUM_BRIDGE_ADDRESS not set in .env");
+
+    await sendFromEvm(
+        "arbitrum",
+        ARBITRUM_RPC_URL,
+        ARBITRUM_BRIDGE_ADDRESS,
+        "Arbitrum Sepolia",
+        "https://sepolia.arbiscan.io",
+        destinationChainId,
+        value,
+        destinationName
+    );
+}
+
+async function sendFromBase(destinationChainId: number, value: bigint, destinationName: string) {
+    if (!BASE_RPC_URL) throw new Error("BASE_RPC_URL not set in .env");
+    if (!BASE_BRIDGE_ADDRESS) throw new Error("BASE_BRIDGE_ADDRESS not set in .env");
+
+    await sendFromEvm(
+        "base",
+        BASE_RPC_URL,
+        BASE_BRIDGE_ADDRESS,
+        "Base Sepolia",
+        "https://sepolia.basescan.org",
+        destinationChainId,
+        value,
+        destinationName
+    );
 }
 
 // ============================================================
@@ -305,6 +347,9 @@ async function main() {
     switch (from) {
         case "arbitrum":
             await sendFromArbitrum(destinationChainId, value, to);
+            break;
+        case "base":
+            await sendFromBase(destinationChainId, value, to);
             break;
         case "aztec":
             await sendFromAztec(destinationChainId, value, to, mode);

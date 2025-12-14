@@ -4,6 +4,7 @@ import { PublicKey } from "@solana/web3.js";
 export const CHAIN_ID_SOLANA = 1;
 export const CHAIN_ID_ETHEREUM = 2;
 export const CHAIN_ID_ARBITRUM_SEPOLIA = 10003;
+export const CHAIN_ID_BASE_SEPOLIA = 10004;
 export const CHAIN_ID_AZTEC = 56;
 
 // PDA Seeds

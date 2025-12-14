@@ -25,8 +25,8 @@ const (
 	EVMDestinationChainID uint16 = 10003
 )
 
-// Default source chains for EVM destination (Aztec=56, Solana=1)
-var DefaultEVMSourceChains = []int{56, 1}
+// Default source chains for EVM destination (Aztec=56, Solana=1, Base=10004)
+var DefaultEVMSourceChains = []int{56, 1, 10004}
 
 // evmCmd represents the command to relay VAAs to EVM chains
 var evmCmd = &cobra.Command{
@@ -65,7 +65,7 @@ func init() {
 	evmCmd.Flags().IntSlice(
 		"chain-ids",
 		DefaultEVMSourceChains,
-		"Source chain IDs to listen for (Aztec=56, Solana=1)")
+		"Source chain IDs to listen for (Aztec=56, Solana=1, Base=10004)")
 
 	evmCmd.Flags().String(
 		"emitter-address",
