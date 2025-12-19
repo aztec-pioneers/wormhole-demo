@@ -5,7 +5,7 @@ loadRootEnv();
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { TestWallet } from "@aztec/test-wallet/server";
-import { MessageBridgeContract } from "@aztec-wormhole-demo/aztec-contracts/artifacts";
+import { MessageBridgeContract } from "@aztec-wormhole-demo/aztec-sdk/artifacts";
 import { WORMHOLE_CHAIN_IDS } from "@aztec-wormhole-demo/shared/constants";
 import { loadAccount, MESSAGE_FEE, TESTNET_PXE_CONFIG, testnetSendWaitOpts } from "./utils/aztec";
 

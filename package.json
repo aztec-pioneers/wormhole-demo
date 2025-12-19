@@ -17,7 +17,7 @@
     "build": "pnpm run build:aztec && pnpm run build:evm && pnpm run build:solana",
     "build:aztec": "tsx scripts/buildAztec.ts",
     "build:evm": "cd packages/evm && forge build --skip test",
-    "build:solana": "cd packages/solana/message_bridge && anchor build",
+    "build:solana": "cd packages/solana && RUSTUP_TOOLCHAIN=nightly-2024-12-01 anchor build",
     "create-relayer-account": "tsx scripts/setupRelayerAccount.ts",
     "deploy:arbitrum": "tsx scripts/deployEVM.ts --chain=arbitrum",
     "deploy:base": "tsx scripts/deployEVM.ts --chain=base",

@@ -14,7 +14,7 @@ import { Fr } from "@aztec/aztec.js/fields";
 import type { BaseMessageBridgeEmitter, NetworkName } from "@aztec-wormhole-demo/shared";
 import { EvmMessageBridgeClient } from "@aztec-wormhole-demo/evm-sdk";
 import { SolanaMessageBridgeClient, WORMHOLE_PROGRAM_ID } from "@aztec-wormhole-demo/solana-sdk";
-import { AztecMessageBridgeClient, getPriorityFeeOptions, getSponsoredPaymentMethod } from "@aztec-wormhole-demo/aztec-contracts";
+import { AztecMessageBridgeClient, getPriorityFeeOptions, getSponsoredPaymentMethod } from "@aztec-wormhole-demo/aztec-sdk";
 import { loadKeypair } from "./solana";
 import { getTestnetPxeConfig } from "./aztec";
 

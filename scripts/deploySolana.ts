@@ -10,11 +10,22 @@ import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { createSolanaClient } from "./utils/clients";
 import { loadKeypair } from "./utils/solana";
 
+async function waitForProgram(connection: Connection, programId: PublicKey, maxRetries = 30) {
+    for (let i = 0; i < maxRetries; i++) {
+        const info = await connection.getAccountInfo(programId);
+        if (info?.executable) return;
+        console.log(`  Waiting for program... (${i + 1}/${maxRetries})`);
+        await new Promise(r => setTimeout(r, 2000));
+    }
+    throw new Error("Program not available after deploy");
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const SOLANA_DIR = join(__dirname, "../packages/solana/message_bridge");
+const SOLANA_DIR = join(__dirname, "../packages/solana");
 const KEYPAIR_PATH = join(SOLANA_DIR, "target/deploy/message_bridge-keypair.json");
+const WALLET_PATH = join(SOLANA_DIR, "target/deploy/wallet-keypair.json");
 const LIB_RS_PATH = join(SOLANA_DIR, "programs/message_bridge/src/lib.rs");
 const ANCHOR_TOML_PATH = join(SOLANA_DIR, "Anchor.toml");
 
@@ -27,6 +38,9 @@ async function main() {
     const connection = new Connection(SOLANA_RPC_URL, "confirmed");
     const payer = loadKeypair();
     console.log(`  Payer: ${payer.publicKey.toBase58()}`);
+
+    // Write payer keypair to file for anchor to use
+    writeFileSync(WALLET_PATH, JSON.stringify(Array.from(payer.secretKey)));
 
     // 1. Check for existing deployment
     const existingProgramId = process.env.SOLANA_BRIDGE_PROGRAM_ID;
@@ -45,21 +59,26 @@ async function main() {
 
     // 4. Build
     console.log("\n4. Building program...");
-    execSync("anchor build", { cwd: SOLANA_DIR, stdio: "inherit" });
+    execSync("RUSTUP_TOOLCHAIN=nightly-2024-12-01 anchor build", { cwd: SOLANA_DIR, stdio: "inherit" });
 
     // 5. Deploy
     console.log("\n5. Deploying to devnet...");
-    execSync("anchor deploy --provider.cluster devnet", { cwd: SOLANA_DIR, stdio: "inherit" });
+    execSync(`anchor deploy --provider.cluster devnet --provider.wallet "${WALLET_PATH}"`, { cwd: SOLANA_DIR, stdio: "inherit" });
 
-    // 6. Update .env
+    // 6. Update .env (also updates process.env)
     updateRootEnv({ SOLANA_BRIDGE_PROGRAM_ID: newProgramId, SOLANA_RPC_URL });
 
-    // 7. Initialize
-    console.log("\n6. Initializing bridge...");
-    const  client = await createSolanaClient();
+    // 7. Wait for program to be available
+    console.log("\n6. Waiting for program to propagate...");
+    await waitForProgram(connection, new PublicKey(newProgramId));
+    console.log("  Program is available!");
+
+    // 8. Initialize
+    console.log("\n7. Initializing bridge...");
+    const client = await createSolanaClient();
     await client.initialize();
 
-    // 8. Summary
+    // 9. Summary
     console.log("\n========================================");
     console.log("Deployment complete!");
     console.log(`Program ID: ${newProgramId}`);
@@ -76,7 +95,7 @@ async function handleExistingDeployment(connection: Connection, programId: strin
             console.log("  Found existing deployment. Closing...");
             const before = await connection.getBalance(payer.publicKey);
             try {
-                execSync(`solana program close ${programId} --bypass-warning`, { stdio: "inherit" });
+                execSync(`solana program close ${programId} --bypass-warning -k "${WALLET_PATH}" -u devnet`, { stdio: "inherit" });
                 const after = await connection.getBalance(payer.publicKey);
                 console.log(`  Recovered ${((after - before) / 1e9).toFixed(4)} SOL`);
             } catch { console.log("  Could not close program"); }

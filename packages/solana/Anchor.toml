@@ -1,13 +1,13 @@
 [toolchain]
 package_manager = "yarn"
-anchor_version = "0.31.1"
+anchor_version = "0.30.1"
 
 [features]
 resolution = true
 skip-lint = false
 
 [programs.localnet]
-message_bridge = "6eLf6j8YhfhB95kYPRpeUDdF1JWTdECNnsKmUpxwdAjp"
+message_bridge = "JBK64c7by91GUjR8Fe4b7YwwFBQXic3b7azWPfKMJdUh"
 
 [registry]
 url = "https://api.apr.dev"
