@@ -8,13 +8,13 @@ Simple showcase of Aztec<>EVM cross chain communication
 
 - Node.js (v22+)
 - pnpm (v9+)
-- Aztec (v3.0.0-devnet.5)
+- Aztec (v3.0.0-devnet.20251212)
 - Foundry (latest)
 - Solana CLI (v2.0+, funded on devnet)
 - Docker / Docker Compose
 
 ## Usage
-Note: relaying on wormhole devnet routinely takes up to 20 minutes. This is a limitation of the testnet environment - the guardian service is configured on a slow cadence. In practice, this is not a concern on mainnet.
+Note: relaying on wormhole can take up to ~20 minutes. This can be changed by using unsafe finaality ("Consistency") on EVM chains for dev purposes. This feature is not implemented for aztec devnet. Solana outbound tx's are near instant.
 
 ### 1. Installation
 Install the repo and all dependencies
@@ -82,30 +82,31 @@ All relayer services are bundled into a docker compose that can be started up wi
 pnpm relayer
 ```
 
-### 8. Update the value on an EVM chain using the Aztec bridge
-You can privately or publicly send a message through wormhole from Aztec to a destination chain. In this demo, the private/ public broadcasting doesn't really matter, but the pattern is nonetheless demonstrated.
+### 8. Send cross-chain messages
+Use the unified send command to transfer values between any supported chains.
+
 ```bash
-# Set the value on arbitrum sepolia to 200 {defaults to private call}
-pnpm send:aztec 200
+# Usage: pnpm send <value> --from <source> --to <destination>
+# Chains: arbitrum | base | solana | aztec
 
-# Privately set the value on arbitrum sepolia to 10293
-pnpm send:aztec 10293 --private
+# Send from Arbitrum to Aztec
+pnpm send 42 --from arbitrum --to aztec
 
-# Publicly set the value on arbitrum sepolia to 7777777
-# NOTE: THIS IS BROKEN DUE TO A BUG IN AZTEC WORMHOLE IMPLEMENTATION
-# https://github.com/NethermindEth/wormhole/pull/58 fix needed before this can be supported
-# technically --private send is broken, but this repo is set up for private to work for now
-pnpm send:aztec 7777777 --public
+# Send from Aztec to Base (private by default)
+pnpm send 100 --from aztec --to base
 
+# Send from Aztec to Arbitrum (public mode)
+pnpm send 200 --from aztec --to arbitrum --public
+
+# Send from Solana to Aztec
+pnpm send 69420 --from solana --to aztec
+
+# Send from Base to Solana
+pnpm send 1337 --from base --to solana
 ```
 
-### 9. Update the value on Aztec using the EVM chain bridge
-```bash
-pnpm send:evm 69420
-```
-
-### 10. Check the values on each chain
-Once the cross-chain messages from each side have been relayed (watch the relayer terminal logs), you can check that the intended action has been relayed across the chain.
+### 9. Check the values on each chain
+Once the cross-chain messages have been relayed (watch the relayer terminal logs), you can check that the values landed on each chain.
 ```bash
 pnpm read:values
 ```

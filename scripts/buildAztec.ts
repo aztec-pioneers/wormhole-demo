@@ -19,10 +19,7 @@ async function main() {
 
         // Compile MessageBridge contract
         console.log("Compiling MessageBridge & Wormhole contracts...");
-        await execCommand("aztec-nargo", ["compile"]);
-
-        console.log("Post-processing contract artifacts...");
-        await execCommand("aztec-postprocess-contract", [], aztecDir);
+        await execCommand("aztec", ["compile"]);
 
         // Generate TypeScript bindings
         console.log("Generating TypeScript bindings...");

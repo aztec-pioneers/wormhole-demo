@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@aztec-wormhole-demo/shared": "workspace:*",
+    "bn.js": "^5.2.1",
     "@coral-xyz/anchor": "^0.30.1",
     "@solana/web3.js": "^1.95.0",
     "@types/express": "^5.0.6",

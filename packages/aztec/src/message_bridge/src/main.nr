@@ -7,7 +7,7 @@ pub mod utils;
 pub contract MessageBridge {
     use aztec::{
         macros::{
-            functions::{initializer, external, internal},
+            functions::{initializer, external, only_self},
             storage::storage,
         },
         protocol_types::address::AztecAddress,
@@ -52,16 +52,16 @@ pub contract MessageBridge {
         message_fee: u128,
         consistency: u8
     ) {
-        storage.config.initialize(Config::new(
+        self.storage.config.initialize(Config::new(
             wormhole_address,
             chain_id,
             message_fee,
             consistency
         ));
-        storage.owner.write(owner);
+        self.storage.owner.write(owner);
 
         // Initialize last received values to zero
-        storage.current_value.write(0);
+        self.storage.current_value.write(0);
     }
 
     /**
@@ -75,8 +75,9 @@ pub contract MessageBridge {
         emitter_addresses: BoundedVec<[u8; 32], 8>,
     ) {
         // 1. check caller is admin
-        let owner = storage.owner.read();
-        assert(owner == context.msg_sender().unwrap(), "Caller is not owner");
+        let owner = self.storage.owner.read();
+        let caller = self.msg_sender().expect(f"Caller undefined");
+        assert(owner == caller, "Caller is not owner");
 
         // 2. check lengths match
         assert(
@@ -88,7 +89,7 @@ pub contract MessageBridge {
             if i < source_chain_ids.len() {
                 let source_chain_id = source_chain_ids.get_unchecked(i);
                 let emitter_address = emitter_addresses.get_unchecked(i);
-                storage.registered_emitters
+                self.storage.registered_emitters
                     .at(source_chain_id)
                     .initialize(Emitter { address: emitter_address });
             }
@@ -106,21 +107,21 @@ pub contract MessageBridge {
         fee_nonce: Field,
     ) {
         // no auth checks
-        let caller = context.msg_sender().unwrap();
-        let config = storage.config.read();
+        let caller = self.msg_sender().expect(f"Caller undefined");
+        let config = self.storage.config.read();
 
         // 1. Encode the message payload (just destination_chain_id + value)
         let wormhole_payload = encode_message_payload(value, destination_chain_id);
 
         // 2. Publish message publicly through Wormhole
-        let _ = Wormhole::at(config.wormhole_address).publish_message_in_public(
+        let _ = self.call(Wormhole::at(config.wormhole_address).publish_message_in_public(
             0, // nonce
             wormhole_payload,
             config.message_fee,
             config.consistency,
             caller,
             fee_nonce,
-        ).call(&mut context);
+        ));
     }
 
     #[external("private")]
@@ -130,21 +131,21 @@ pub contract MessageBridge {
         fee_nonce: Field,
     ) {
         // no auth checks
-        let caller = context.msg_sender().unwrap();
-        let config = storage.config.read();
+        let caller = self.msg_sender().expect(f"Caller undefiend");
+        let config = self.storage.config.read();
 
         // 1. Encode the message payload (just destination_chain_id + value)
         let wormhole_payload = encode_message_payload(value, destination_chain_id);
 
         // 2. Publish message privately through Wormhole
-        let _ = Wormhole::at(config.wormhole_address).publish_message_in_private(
+        let _ = self.call(Wormhole::at(config.wormhole_address).publish_message_in_private(
             0, // nonce
             wormhole_payload,
             config.message_fee,
             config.consistency,
             caller,
             fee_nonce,
-        ).call(&mut context);
+        ));
     }
 
     // ============================================================================
@@ -154,8 +155,8 @@ pub contract MessageBridge {
     #[external("private")]
     fn receive_value(vaa: [u8; 2000], length: u32) {
         // 1. verify the VAA through Wormhole
-        let config = storage.config.read();
-        Wormhole::at(config.wormhole_address).verify_vaa(vaa, length).call(&mut context);
+        let config = self.storage.config.read();
+        self.call(Wormhole::at(config.wormhole_address).verify_vaa(vaa, length));
 
         // 2. decode the VAA (envelope + payload) and compute vaa nullifier
         let (vaa_envelope, vaa_payload, vaa_nullifier) = decode_vaa(vaa);
@@ -168,33 +169,33 @@ pub contract MessageBridge {
 
         // 4. emit the nullifier to prevent replays
         // note: will fail if nullifier has already been emitted
-        context.push_nullifier(vaa_nullifier);
+        self.context.push_nullifier(vaa_nullifier);
 
         // 5. validate emitter and update state (done in public to read public storage)
-        MessageBridge::at(context.this_address())
+        self.enqueue(MessageBridge::at(self.address)
             ._validate_emitter_and_update_value(
                 vaa_envelope.emitter_chain_id,
                 vaa_envelope.emitter_address,
                 vaa_payload.value,
-            )
-            .enqueue(&mut context);
+            ))
+            
     }
 
     #[external("public")]
-    #[internal]
+    #[only_self]
     fn _validate_emitter_and_update_value(
         emitter_chain_id: u16,
         emitter_address: [u8; 32],
         value: u128,
     ) {
         // Validate emitter from VAA envelope (not sender from payload)
-        let registered_emitter = storage.registered_emitters
+        let registered_emitter = self.storage.registered_emitters
             .at(emitter_chain_id)
             .read().address;
         assert(registered_emitter == emitter_address, "Emitter not registered");
 
         // Update state with received value
-        storage.current_value.write(value);
+        self.storage.current_value.write(value);
     }
 
     // ============================================================================
@@ -203,17 +204,17 @@ pub contract MessageBridge {
 
     #[external("utility")]
     unconstrained fn get_config() -> Config {
-        storage.config.read()
+        self.storage.config.read()
     }
 
     #[external("utility")]
     unconstrained fn get_owner() -> AztecAddress {
-        storage.owner.read()
+        self.storage.owner.read()
     }
 
     #[external("utility")]
     unconstrained fn is_emitter_registered(chain_id: u16, emitter_address: [u8; 32]) -> bool {
-        let registered_emitter = storage.registered_emitters
+        let registered_emitter = self.storage.registered_emitters
             .at(chain_id)
             .read().address;
         registered_emitter == emitter_address
@@ -221,13 +222,13 @@ pub contract MessageBridge {
 
     #[external("utility")]
     unconstrained fn get_registered_emitter(chain_id: u16) -> [u8; 32] {
-        storage.registered_emitters
+        self.storage.registered_emitters
             .at(chain_id)
             .read().address
     }
 
     #[external("utility")]
     unconstrained fn get_current_value() -> u128 {
-        storage.current_value.read()
+        self.storage.current_value.read()
     }
 }

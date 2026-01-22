@@ -4,7 +4,7 @@
 /* eslint-disable */
 import { AztecAddress, CompleteAddress } from '@aztec/aztec.js/addresses';
 import { type AbiType, type AztecAddressLike, type ContractArtifact, EventSelector, decodeFromAbi, type EthAddressLike, type FieldLike, type FunctionSelectorLike, loadContractArtifact, loadContractArtifactForPublic, type NoirCompiledContract, type U128Like, type WrappedFieldLike } from '@aztec/aztec.js/abi';
-import { Contract, ContractBase, ContractFunctionInteraction, type ContractInstanceWithAddress, type ContractMethod, type ContractStorageLayout, DeployMethod } from '@aztec/aztec.js/contracts';
+import { Contract, ContractBase, ContractFunctionInteraction, type ContractMethod, type ContractStorageLayout, DeployMethod } from '@aztec/aztec.js/contracts';
 import { EthAddress } from '@aztec/aztec.js/addresses';
 import { Fr, Point } from '@aztec/aztec.js/fields';
 import { type PublicKey, PublicKeys } from '@aztec/aztec.js/keys';
@@ -20,10 +20,10 @@ export const WormholeContractArtifact = loadContractArtifact(WormholeContractArt
 export class WormholeContract extends ContractBase {
   
   private constructor(
-    instance: ContractInstanceWithAddress,
+    address: AztecAddress,
     wallet: Wallet,
   ) {
-    super(instance, WormholeContractArtifact, wallet);
+    super(address, WormholeContractArtifact, wallet);
   }
   
 
@@ -32,13 +32,13 @@ export class WormholeContract extends ContractBase {
    * Creates a contract instance.
    * @param address - The deployed contract's address.
    * @param wallet - The wallet to use when interacting with the contract.
-   * @returns A promise that resolves to a new Contract instance.
+   * @returns A new Contract instance.
    */
-  public static async at(
+  public static at(
     address: AztecAddress,
     wallet: Wallet,
-  ) {
-    return Contract.at(address, WormholeContract.artifact, wallet) as Promise<WormholeContract>;
+  ): WormholeContract {
+    return Contract.at(address, WormholeContract.artifact, wallet) as WormholeContract;
   }
 
   
@@ -46,14 +46,14 @@ export class WormholeContract extends ContractBase {
    * Creates a tx to deploy a new instance of this contract.
    */
   public static deploy(wallet: Wallet, chain_id: (bigint | number), evm_chain_id: (bigint | number), owner: AztecAddressLike, receiver_address: AztecAddressLike, token_address: AztecAddressLike) {
-    return new DeployMethod<WormholeContract>(PublicKeys.default(), wallet, WormholeContractArtifact, WormholeContract.at, Array.from(arguments).slice(1));
+    return new DeployMethod<WormholeContract>(PublicKeys.default(), wallet, WormholeContractArtifact, (instance, wallet) => WormholeContract.at(instance.address, wallet), Array.from(arguments).slice(1));
   }
 
   /**
    * Creates a tx to deploy a new instance of this contract using the specified public keys hash to derive the address.
    */
   public static deployWithPublicKeys(publicKeys: PublicKeys, wallet: Wallet, chain_id: (bigint | number), evm_chain_id: (bigint | number), owner: AztecAddressLike, receiver_address: AztecAddressLike, token_address: AztecAddressLike) {
-    return new DeployMethod<WormholeContract>(publicKeys, wallet, WormholeContractArtifact, WormholeContract.at, Array.from(arguments).slice(2));
+    return new DeployMethod<WormholeContract>(publicKeys, wallet, WormholeContractArtifact, (instance, wallet) => WormholeContract.at(instance.address, wallet), Array.from(arguments).slice(2));
   }
 
   /**
@@ -67,7 +67,7 @@ export class WormholeContract extends ContractBase {
       opts.publicKeys ?? PublicKeys.default(),
       opts.wallet,
       WormholeContractArtifact,
-      WormholeContract.at,
+      (instance, wallet) => WormholeContract.at(instance.address, wallet),
       Array.from(arguments).slice(1),
       opts.method ?? 'constructor',
     );
@@ -174,9 +174,6 @@ current_guardian_set_index: {
   /** Type-safe wrappers for the public methods exposed by the contract. */
   public declare methods: {
     
-    /** compute_vaa_hash_unconstrained(body_bytes: array, body_length: integer) */
-    compute_vaa_hash_unconstrained: ((body_bytes: (bigint | number)[], body_length: (bigint | number)) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
-
     /** expire_guardian_set(index: integer) */
     expire_guardian_set: ((index: (bigint | number)) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
@@ -203,9 +200,6 @@ current_guardian_set_index: {
 
     /** init(chain_id: integer, evm_chain_id: integer, owner: struct, receiver_address: struct, token_address: struct) */
     init: ((chain_id: (bigint | number), evm_chain_id: (bigint | number), owner: AztecAddressLike, receiver_address: AztecAddressLike, token_address: AztecAddressLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
-
-    /** parse_vaa_unconstrained(bytes: array, actual_length: integer) */
-    parse_vaa_unconstrained: ((bytes: (bigint | number)[], actual_length: (bigint | number)) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
     /** process_message(message_ciphertext: struct, message_context: struct) */
     process_message: ((message_ciphertext: FieldLike[], message_context: { tx_hash: FieldLike, unique_note_hashes_in_tx: FieldLike[], first_nullifier_in_tx: FieldLike, recipient: AztecAddressLike }) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;

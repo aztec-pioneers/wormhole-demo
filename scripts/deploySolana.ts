@@ -73,10 +73,27 @@ async function main() {
     await waitForProgram(connection, new PublicKey(newProgramId));
     console.log("  Program is available!");
 
-    // 8. Initialize
+    // 8. Initialize (with retry for RPC consistency)
     console.log("\n7. Initializing bridge...");
+    console.log("  Waiting additional 10s for RPC consistency...");
+    await new Promise(r => setTimeout(r, 10000));
+
     const client = await createSolanaClient();
-    await client.initialize();
+
+    // Retry initialization up to 3 times
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            console.log(`  Initialize attempt ${attempt}/3...`);
+            await client.initialize();
+            console.log("  Initialize succeeded!");
+            break;
+        } catch (err: any) {
+            console.error(`  Attempt ${attempt} failed:`, err.message || err);
+            if (attempt === 3) throw err;
+            console.log("  Waiting 5s before retry...");
+            await new Promise(r => setTimeout(r, 5000));
+        }
+    }
 
     // 9. Summary
     console.log("\n========================================");
@@ -111,13 +128,32 @@ function generateNewProgramKeypair(): string {
 }
 
 function updateProgramIdInSources(newProgramId: string) {
+    console.log(`  LIB_RS_PATH: ${LIB_RS_PATH}`);
+    console.log(`  ANCHOR_TOML_PATH: ${ANCHOR_TOML_PATH}`);
+
     let libRs = readFileSync(LIB_RS_PATH, "utf8");
+    const oldLibRsMatch = libRs.match(/declare_id!\("([^"]+)"\);/);
+    console.log(`  lib.rs old ID: ${oldLibRsMatch?.[1]}`);
     libRs = libRs.replace(/declare_id!\("[^"]+"\);/, `declare_id!("${newProgramId}");`);
     writeFileSync(LIB_RS_PATH, libRs);
 
+    // Verify write
+    const verifyLibRs = readFileSync(LIB_RS_PATH, "utf8");
+    const newLibRsMatch = verifyLibRs.match(/declare_id!\("([^"]+)"\);/);
+    console.log(`  lib.rs new ID: ${newLibRsMatch?.[1]}`);
+    console.log(`  lib.rs update success: ${newLibRsMatch?.[1] === newProgramId}`);
+
     let anchorToml = readFileSync(ANCHOR_TOML_PATH, "utf8");
+    const oldAnchorMatch = anchorToml.match(/message_bridge = "([^"]+)"/);
+    console.log(`  Anchor.toml old ID: ${oldAnchorMatch?.[1]}`);
     anchorToml = anchorToml.replace(/message_bridge = "[^"]+"/, `message_bridge = "${newProgramId}"`);
     writeFileSync(ANCHOR_TOML_PATH, anchorToml);
+
+    // Verify write
+    const verifyAnchor = readFileSync(ANCHOR_TOML_PATH, "utf8");
+    const newAnchorMatch = verifyAnchor.match(/message_bridge = "([^"]+)"/);
+    console.log(`  Anchor.toml new ID: ${newAnchorMatch?.[1]}`);
+    console.log(`  Anchor.toml update success: ${newAnchorMatch?.[1] === newProgramId}`);
 }
 
 main().catch((err) => {

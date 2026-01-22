@@ -10,7 +10,6 @@ services:
       - PORT=3000
       # Aztec devnet configuration
       - AZTEC_NODE_URL=${AZTEC_NODE_URL}
-      - ROLLUP_VERSION=${ROLLUP_VERSION}
       # Relayer account credentials
       - AZTEC_RELAYER_PRIVATE_KEY=${AZTEC_RELAYER_PRIVATE_KEY}
       - AZTEC_RELAYER_SALT=${AZTEC_RELAYER_SALT}
