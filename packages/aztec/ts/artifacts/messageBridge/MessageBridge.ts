@@ -4,7 +4,7 @@
 /* eslint-disable */
 import { AztecAddress, CompleteAddress } from '@aztec/aztec.js/addresses';
 import { type AbiType, type AztecAddressLike, type ContractArtifact, EventSelector, decodeFromAbi, type EthAddressLike, type FieldLike, type FunctionSelectorLike, loadContractArtifact, loadContractArtifactForPublic, type NoirCompiledContract, type U128Like, type WrappedFieldLike } from '@aztec/aztec.js/abi';
-import { Contract, ContractBase, ContractFunctionInteraction, type ContractInstanceWithAddress, type ContractMethod, type ContractStorageLayout, DeployMethod } from '@aztec/aztec.js/contracts';
+import { Contract, ContractBase, ContractFunctionInteraction, type ContractMethod, type ContractStorageLayout, DeployMethod } from '@aztec/aztec.js/contracts';
 import { EthAddress } from '@aztec/aztec.js/addresses';
 import { Fr, Point } from '@aztec/aztec.js/fields';
 import { type PublicKey, PublicKeys } from '@aztec/aztec.js/keys';
@@ -20,10 +20,10 @@ export const MessageBridgeContractArtifact = loadContractArtifact(MessageBridgeC
 export class MessageBridgeContract extends ContractBase {
   
   private constructor(
-    instance: ContractInstanceWithAddress,
+    address: AztecAddress,
     wallet: Wallet,
   ) {
-    super(instance, MessageBridgeContractArtifact, wallet);
+    super(address, MessageBridgeContractArtifact, wallet);
   }
   
 
@@ -32,13 +32,13 @@ export class MessageBridgeContract extends ContractBase {
    * Creates a contract instance.
    * @param address - The deployed contract's address.
    * @param wallet - The wallet to use when interacting with the contract.
-   * @returns A promise that resolves to a new Contract instance.
+   * @returns A new Contract instance.
    */
-  public static async at(
+  public static at(
     address: AztecAddress,
     wallet: Wallet,
-  ) {
-    return Contract.at(address, MessageBridgeContract.artifact, wallet) as Promise<MessageBridgeContract>;
+  ): MessageBridgeContract {
+    return Contract.at(address, MessageBridgeContract.artifact, wallet) as MessageBridgeContract;
   }
 
   
@@ -46,14 +46,14 @@ export class MessageBridgeContract extends ContractBase {
    * Creates a tx to deploy a new instance of this contract.
    */
   public static deploy(wallet: Wallet, wormhole_address: AztecAddressLike, chain_id: (bigint | number), owner: AztecAddressLike, message_fee: (bigint | number), consistency: (bigint | number)) {
-    return new DeployMethod<MessageBridgeContract>(PublicKeys.default(), wallet, MessageBridgeContractArtifact, MessageBridgeContract.at, Array.from(arguments).slice(1));
+    return new DeployMethod<MessageBridgeContract>(PublicKeys.default(), wallet, MessageBridgeContractArtifact, (instance, wallet) => MessageBridgeContract.at(instance.address, wallet), Array.from(arguments).slice(1));
   }
 
   /**
    * Creates a tx to deploy a new instance of this contract using the specified public keys hash to derive the address.
    */
   public static deployWithPublicKeys(publicKeys: PublicKeys, wallet: Wallet, wormhole_address: AztecAddressLike, chain_id: (bigint | number), owner: AztecAddressLike, message_fee: (bigint | number), consistency: (bigint | number)) {
-    return new DeployMethod<MessageBridgeContract>(publicKeys, wallet, MessageBridgeContractArtifact, MessageBridgeContract.at, Array.from(arguments).slice(2));
+    return new DeployMethod<MessageBridgeContract>(publicKeys, wallet, MessageBridgeContractArtifact, (instance, wallet) => MessageBridgeContract.at(instance.address, wallet), Array.from(arguments).slice(2));
   }
 
   /**
@@ -67,7 +67,7 @@ export class MessageBridgeContract extends ContractBase {
       opts.publicKeys ?? PublicKeys.default(),
       opts.wallet,
       MessageBridgeContractArtifact,
-      MessageBridgeContract.at,
+      (instance, wallet) => MessageBridgeContract.at(instance.address, wallet),
       Array.from(arguments).slice(1),
       opts.method ?? 'constructor',
     );

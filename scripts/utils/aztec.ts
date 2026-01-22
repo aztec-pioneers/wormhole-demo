@@ -1,21 +1,14 @@
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { SendInteractionOptions, WaitOpts } from "@aztec/aztec.js/contracts";
 import { AztecNode } from "@aztec/aztec.js/node";
-import { BaseWallet } from "@aztec/aztec.js/wallet";
+import type { Wallet } from "@aztec/aztec.js/wallet";
 import { PXEConfig } from "@aztec/pxe/config";
 import { getPriorityFeeOptions, getSponsoredPaymentMethod } from "@aztec-wormhole-demo/aztec-sdk/fees";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { Fr } from "@aztec/aztec.js/fields";
 
 export function getTestnetPxeConfig(): Partial<PXEConfig> {
-    const { ROLLUP_VERSION } = process.env;
-    if (!ROLLUP_VERSION) {
-        throw new Error("ROLLUP_VERSION not set in .env");
-    }
-    return {
-        rollupVersion: Number(ROLLUP_VERSION),
-        proverEnabled: false
-    };
+    return { proverEnabled: true };
 }
 
 // For backwards compatibility - lazy getter
@@ -36,7 +29,7 @@ export async function isDevnet(node: AztecNode): Promise<boolean> {
 
 export async function testnetSendWaitOpts(
     node: AztecNode,
-    wallet: BaseWallet,
+    wallet: Wallet,
     from: AztecAddress
 ): Promise<{
     send: SendInteractionOptions,

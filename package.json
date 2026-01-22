@@ -13,7 +13,7 @@
     "url": "git+https://github.com/aztec-pioneers/wormhole-demo.git"
   },
   "scripts": {
-    "postinstall": "git submodule update --init --recursive && cd packages/evm && forge install",
+    "postinstall": "git submodule update --init --remote --recursive && cd packages/evm && forge install",
     "build": "pnpm run build:aztec && pnpm run build:evm && pnpm run build:solana",
     "build:aztec": "tsx scripts/buildAztec.ts",
     "build:evm": "cd packages/evm && forge build --skip test",

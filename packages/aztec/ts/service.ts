@@ -12,7 +12,6 @@ import { WormholeContractArtifact } from "./artifacts/index.js";
 
 const PORT = process.env.PORT || 3000;
 const AZTEC_NODE_URL = process.env.AZTEC_NODE_URL;
-const ROLLUP_VERSION = process.env.ROLLUP_VERSION;
 const AZTEC_RELAYER_PRIVATE_KEY = process.env.AZTEC_RELAYER_PRIVATE_KEY;
 const AZTEC_RELAYER_SALT = process.env.AZTEC_RELAYER_SALT;
 const AZTEC_WORMHOLE_ADDRESS = process.env.AZTEC_WORMHOLE_ADDRESS;
@@ -83,7 +82,6 @@ app.post("/verify", async (req, res) => {
 async function init() {
     // Validate env
     if (!AZTEC_NODE_URL) throw new Error("AZTEC_NODE_URL not set");
-    if (!ROLLUP_VERSION) throw new Error("ROLLUP_VERSION not set");
     if (!AZTEC_RELAYER_PRIVATE_KEY) throw new Error("AZTEC_RELAYER_PRIVATE_KEY not set");
     if (!AZTEC_RELAYER_SALT) throw new Error("AZTEC_RELAYER_SALT not set");
     if (!AZTEC_WORMHOLE_ADDRESS) throw new Error("AZTEC_WORMHOLE_ADDRESS not set");
@@ -91,7 +89,7 @@ async function init() {
 
     // Initialize node and wallet
     node = createAztecNodeClient(AZTEC_NODE_URL);
-    const pxeConfig = { ...getPXEConfig(), rollupVersion: Number(ROLLUP_VERSION) };
+    const pxeConfig = { proverEnabled: true };
     const pxeOptions = {
         store: await createStore("pxe", { dataDirectory: "store", dataStoreMapSizeKb: 1e6 }),
     };
